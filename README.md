@@ -1136,3 +1136,12 @@ To everyone who has opened a PR, filed an issue, started a Discussion, or simply
 Made with ❤️ by the community, for the community
 
 </div>
+
+## Kavoikoff&CO demo
+
+The iPhone-friendly PWA demo is in `agno-demo/`. It runs two local agents in sequence:
+
+- Author proposes one practical next step.
+- Critic checks the proposal and suggests one concrete improvement when needed.
+
+The demo uses Ollama locally with `qwen2.5:1.5b`, selected for the available Codespace memory. See `agno-demo/LOCAL_RUN.md` for launch instructions.
