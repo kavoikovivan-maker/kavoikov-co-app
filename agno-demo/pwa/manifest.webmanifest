@@ -1,11 +1,11 @@
 {
-  "name": "Kavoikoikoff & CO",
+  "name": "Kavoikoff&CO",
   "short_name": "K&C",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#08131f",
-  "theme_color": "#0f172a",
+  "background_color": "#050608",
+  "theme_color": "#07090c",
   "icons": [
     {
       "src": "/icon-192.png",

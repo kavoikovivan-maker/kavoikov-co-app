@@ -1,3 +1,1 @@
-agno==3.0.9
-ollama>=0.4,<1
 openai>=1,<3

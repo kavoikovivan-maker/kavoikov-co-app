@@ -1144,4 +1144,4 @@ The iPhone-friendly PWA demo is in `agno-demo/`. It runs two local agents in seq
 - Author proposes one practical next step.
 - Critic checks the proposal and suggests one concrete improvement when needed.
 
-The demo uses Ollama locally with `qwen2.5:1.5b`, selected for the available Codespace memory. See `agno-demo/LOCAL_RUN.md` for launch instructions.
+The Kavoikoff&CO PWA includes a single conversational assistant backed by Groq's OpenAI-compatible API. See `agno-demo/LOCAL_RUN.md` for launch instructions.

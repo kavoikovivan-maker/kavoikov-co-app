@@ -3,399 +3,154 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="theme-color" content="#07090c" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Kavoikoikoff &amp; CO" />
-    <meta
-      name="description"
-      content="Личный командный интерфейс для управления задачами и голосовыми заметками."
-    />
-    <title>Kavoikoikoff &amp; CO</title>
+    <meta name="apple-mobile-web-app-title" content="Kavoikoff&CO" />
+    <meta name="description" content="Kavoikoff&CO — личный ИИ-чат и рабочий интерфейс." />
+    <title>Kavoikoff&CO</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="./icon.svg" />
     <link rel="apple-touch-icon" href="./icon-180.png" />
-    <style>
-      :root {
-        --bg: #08131f;
-        --panel: rgba(15, 23, 42, 0.82);
-        --card: #122033;
-        --card-alt: #172b44;
-        --muted: #9fb3c8;
-        --text: #eaf2ff;
-        --accent: #7dd3fc;
-        --accent-2: #a78bfa;
-        --success: #34d399;
-        --shadow: rgba(8, 19, 31, 0.4);
-      }
-
-      * { box-sizing: border-box; }
-
-      html, body {
-        margin: 0;
-        min-height: 100%;
-        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif;
-        background:
-          radial-gradient(circle at top, rgba(125, 211, 252, 0.18), transparent 35%),
-          linear-gradient(180deg, #08131f 0%, #0e1726 100%);
-        color: var(--text);
-      }
-
-      body {
-        display: grid;
-        place-items: center;
-        padding: env(safe-area-inset-top, 24px) 18px calc(env(safe-area-inset-bottom, 24px) + 20px);
-      }
-
-      .iphone-shell {
-        width: min(100%, 420px);
-        min-height: min(92vh, 860px);
-        border-radius: 32px;
-        background: rgba(12, 19, 29, 0.92);
-        border: 1px solid rgba(148, 163, 184, 0.2);
-        box-shadow: 0 32px 60px rgba(2, 6, 23, 0.6);
-        overflow: hidden;
-        position: relative;
-      }
-
-      .status-bar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 14px 20px 12px;
-        font-size: 0.8rem;
-        color: var(--text);
-        opacity: 0.9;
-      }
-
-      .status-icons {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: #e2e8f0;
-        opacity: 0.9;
-      }
-
-      .app {
-        padding: 0 18px 26px;
-      }
-
-      .header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-top: 6px;
-        margin-bottom: 18px;
-      }
-
-      .brand {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-      }
-
-      .logo {
-        width: 42px;
-        height: 42px;
-        border-radius: 14px;
-        background: linear-gradient(135deg, var(--accent), var(--accent-2));
-        display: grid;
-        place-items: center;
-        color: #05151f;
-        font-weight: 800;
-        box-shadow: 0 10px 24px rgba(125, 211, 252, 0.26);
-      }
-
-      h1 {
-        margin: 0;
-        font-size: 1.05rem;
-        letter-spacing: 0.02em;
-      }
-
-      .menu {
-        width: 34px;
-        height: 34px;
-        border-radius: 12px;
-        background: rgba(255,255,255,0.04);
-        display: grid;
-        place-items: center;
-        color: var(--text);
-      }
-
-      .hero {
-        background: linear-gradient(145deg, rgba(125, 211, 252, 0.12), rgba(167, 139, 250, 0.12));
-        border: 1px solid rgba(125, 211, 252, 0.18);
-        border-radius: 24px;
-        padding: 18px 16px;
-        margin-bottom: 18px;
-      }
-
-      .eyebrow {
-        display: inline-block;
-        font-size: 0.72rem;
-        color: var(--accent);
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        margin-bottom: 10px;
-      }
-
-      .hero h2 {
-        margin: 0;
-        font-size: clamp(1.5rem, 4vw, 2.1rem);
-        line-height: 1.16;
-      }
-
-      .hero p {
-        margin: 10px 0 0;
-        color: var(--muted);
-        font-size: 0.95rem;
-        line-height: 1.5;
-      }
-
-      .quick-actions {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
-        margin-bottom: 20px;
-      }
-
-      .action {
-        background: linear-gradient(180deg, rgba(19, 35, 52, 0.97), rgba(17, 28, 41, 0.97));
-        border: 1px solid rgba(148, 163, 184, 0.1);
-        border-radius: 18px;
-        padding: 14px 12px;
-      }
-
-      .action .label {
-        color: var(--muted);
-        font-size: 0.75rem;
-        display: block;
-        margin-bottom: 10px;
-      }
-
-      .action strong {
-        font-size: 1.1rem;
-      }
-
-      .task-list {
-        display: grid;
-        gap: 12px;
-      }
-
-      .task-card {
-        background: rgba(18, 32, 51, 0.96);
-        border: 1px solid rgba(148, 163, 184, 0.12);
-        border-radius: 18px;
-        padding: 14px 14px 12px;
-      }
-
-      .task-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 10px;
-      }
-
-      .badge {
-        font-size: 0.68rem;
-        padding: 5px 8px;
-        border-radius: 999px;
-        background: rgba(52, 211, 153, 0.12);
-        color: var(--success);
-      }
-
-      .task-card h3 {
-        margin: 0;
-        font-size: 0.98rem;
-      }
-
-      .task-card p {
-        margin: 8px 0 0;
-        color: var(--muted);
-        font-size: 0.83rem;
-        line-height: 1.45;
-      }
-
-      .panel {
-        background: rgba(18, 32, 51, 0.96);
-        border: 1px solid rgba(148, 163, 184, 0.12);
-        border-radius: 18px;
-        padding: 14px;
-        margin-bottom: 16px;
-      }
-
-      textarea {
-        width: 100%;
-        min-height: 100px;
-        resize: vertical;
-        border: 1px solid rgba(148, 163, 184, 0.18);
-        background: rgba(15, 23, 42, 0.8);
-        color: var(--text);
-        border-radius: 14px;
-        padding: 12px;
-        font: inherit;
-      }
-
-      button {
-        border: none;
-        border-radius: 14px;
-        padding: 12px 16px;
-        background: linear-gradient(135deg, var(--accent), var(--accent-2));
-        color: #06131d;
-        font-weight: 700;
-        font: inherit;
-        cursor: pointer;
-      }
-
-      .discussion-output {
-        display: grid;
-        gap: 12px;
-      }
-
-      .response-card {
-        background: rgba(15, 23, 42, 0.7);
-        border: 1px solid rgba(148, 163, 184, 0.1);
-        border-radius: 16px;
-        padding: 12px 14px;
-      }
-
-      .response-card h4 {
-        margin: 0 0 8px;
-        font-size: 0.9rem;
-      }
-
-      .response-card p {
-        margin: 0;
-        line-height: 1.5;
-        color: var(--text);
-      }
-
-      .response-meta {
-        display: block;
-        margin-top: 6px;
-        color: var(--muted);
-        font-size: 0.72rem;
-      }
-
-      .history-item {
-        margin-top: 12px;
-        padding-top: 12px;
-        border-top: 1px solid rgba(148, 163, 184, 0.12);
-      }
-
-      .history-item h5 {
-        margin: 0 0 8px;
-        font-size: 0.82rem;
-        color: var(--muted);
-      }
-
-      .history-item p {
-        margin: 0;
-        color: var(--text);
-        line-height: 1.45;
-      }
-
-      .mini-button {
-        background: rgba(148, 163, 184, 0.12);
-        color: var(--text);
-        border: 1px solid rgba(148, 163, 184, 0.14);
-      }
-
-      .title-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 12px;
-      }
-
-      .status-box {
-        font-size: 0.74rem;
-        color: var(--muted);
-        min-height: 1.2em;
-      }
-
-      .fab {
-        position: fixed;
-        right: 24px;
-        bottom: calc(env(safe-area-inset-bottom, 24px) + 20px);
-        width: 62px;
-        height: 62px;
-        display: grid;
-        place-items: center;
-        border-radius: 50%;
-        background: linear-gradient(135deg, var(--accent), var(--accent-2));
-        color: #03141d;
-        font-size: 1.8rem;
-        box-shadow: 0 18px 28px rgba(125, 211, 252, 0.34);
-        border: none;
-      }
-
-      @media (display-mode: standalone) {
-        body {
-          background: #0b1220;
-        }
-      }
-    button {min-height:44px;} button:disabled {opacity:.5;} .brand {min-width:0;} h1 {overflow-wrap:anywhere;} p {white-space:pre-wrap;overflow-wrap:anywhere;} .title-row {flex-wrap:wrap;} .app {padding-top:20px;} .panel:last-child {padding-bottom:80px;} textarea {font-size:16px;} .logo {flex-shrink:0;background:#10233f;color:white;} </style>
+    <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="iphone-shell">
-      <main class="app">
-        <header class="header">
-          <div class="brand">
-            <div class="logo">K&amp;C</div>
-            <h1>Kavoikoikoff &amp; CO</h1>
-          </div>
-          
-        </header>
+    <div class="app-shell" id="appShell">
+      <header class="topbar">
+        <div class="brand-mark" aria-hidden="true">K&amp;C</div>
+        <div class="brand-copy">
+          <span>Kavoikoff&amp;CO</span>
+          <small id="topStatus">Проверяем соединение…</small>
+        </div>
+        <button class="icon-button theme-button" id="themeButton" type="button" aria-label="Сменить тему"><span aria-hidden="true">◐</span></button>
+      </header>
 
-        <section class="hero">
-          <span class="eyebrow">Команда</span>
-          <h2>Голосовые мысли в рабочий порядок.</h2>
-          <p>Записывайте идеи, превращайте их в задачи и поддерживайте фокус без потери контекста.</p>
+      <main class="page-stack">
+        <section class="page active" id="homePage" data-page="home" aria-labelledby="homeTitle">
+          <div class="page-heading">
+            <div><p class="eyebrow">Защищённое пространство</p><h1 id="homeTitle">Соединение</h1></div>
+            <div class="status-orb checking" id="connectionOrb" aria-label="Проверка соединения"><span></span></div>
+          </div>
+
+          <div class="mode-switch" id="modeSwitch" role="group" aria-label="Режим соединения">
+            <button class="active" type="button" data-mode="wifi">Wi‑Fi</button>
+            <button type="button" data-mode="vpn">VPN</button>
+            <button type="button" data-mode="proxy">VK Proxy</button>
+          </div>
+
+          <section class="connection-card glass-card">
+            <div class="connection-title">
+              <div><span class="connection-label" id="connectionLabel">Интернет</span><strong id="connectionState">Проверяем…</strong></div>
+              <div class="signal-bars" id="signalBars" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+            </div>
+            <div class="traffic-grid">
+              <article class="metric-card"><span>↑ Передано</span><strong id="txValue">0 КБ</strong><small id="txRate">За эту сессию</small></article>
+              <article class="metric-card"><span>↓ Получено</span><strong id="rxValue">0 КБ</strong><small id="rxRate">За эту сессию</small></article>
+            </div>
+            <div class="compact-stats">
+              <div><span>Сервер</span><strong id="serverLatency">—</strong></div>
+              <div><span>Сессия</span><strong id="uptimeValue">00:00</strong></div>
+              <div><span>Повторы</span><strong id="reconnectValue">0</strong></div>
+            </div>
+            <button class="primary-button" id="connectionButton" type="button">Проверить соединение</button>
+            <div class="tool-row">
+              <button class="tool-button" id="logsButton" type="button"><span class="tool-icon" aria-hidden="true">≡</span><span>Журнал</span></button>
+              <button class="tool-button" id="speedButton" type="button"><span class="tool-icon" aria-hidden="true">◴</span><span>Скорость</span></button>
+              <button class="tool-button" data-open-page="settings" type="button"><span class="tool-icon" aria-hidden="true">⚙</span><span>Настройки</span></button>
+            </div>
+          </section>
+
+          <section class="media-card glass-card" id="mediaCard">
+            <div class="media-art" aria-hidden="true"><span>K&amp;C</span></div>
+            <div class="media-copy"><span>Медиапанель</span><strong id="mediaTitle">Ничего не воспроизводится</strong><div class="media-progress"><span></span></div></div>
+            <button class="round-button" id="mediaButton" type="button" aria-label="Открыть медиапанель">›</button>
+          </section>
         </section>
 
-        <section class="panel">
-          <div class="title-row">
-            <label for="ideaInput" style="margin:0; color: var(--muted);">Идея</label>
-            <button id="newDiscussionButton" type="button" class="mini-button" aria-label="Новое обсуждение">Новое обсуждение</button>
+        <section class="page" id="chatPage" data-page="chat" aria-labelledby="chatTitle">
+          <div class="page-heading compact-heading">
+            <div><p class="eyebrow">Ваш личный помощник</p><h1 id="chatTitle">K&amp;C GPT</h1></div>
+            <button id="newDiscussionButton" type="button" class="small-button">Новый чат</button>
           </div>
-          <textarea maxlength="1200" id="ideaInput" placeholder="Опишите свою идею…"></textarea>
-          <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px; flex-wrap:wrap;">
-            <button id="starterOne" type="button" class="mini-button">Сначала только для меня</button>
-            <button id="starterTwo" type="button" class="mini-button">Какой первый шаг?</button>
-            <button id="discussButton" type="button">Обсудить</button>
-          </div>
-          <button id="checkButton" type="button" class="mini-button" hidden>Проверить ответ</button>
-          <div id="statusBox" class="status-box" aria-live="polite"></div>
+          <section class="plan-strip glass-card">
+            <div class="plan-copy"><span id="usagePlan">Бесплатный план</span><strong id="usageLabel">Проверяем лимит…</strong></div>
+            <div class="usage-track" aria-hidden="true"><span id="usageBar"></span></div>
+            <button id="upgradeButton" type="button">Pro</button>
+          </section>
+          <section class="composer glass-card">
+            <label for="ideaInput">Сообщение</label>
+            <textarea maxlength="1200" id="ideaInput" placeholder="Опишите задачу или идею…"></textarea>
+            <div class="composer-actions">
+              <button id="starterOne" type="button" class="quiet-button">Программирование</button>
+              <button id="starterTwo" type="button" class="quiet-button">Новый вкус</button>
+              <button id="discussButton" type="button" class="send-button" aria-label="Отправить">↑</button>
+            </div>
+            <button id="checkButton" type="button" class="small-button" hidden>Проверить ответ</button>
+            <div id="statusBox" class="status-box" aria-live="polite">Готов к работе</div>
+          </section>
+          <section class="discussion-output" id="discussionOutput">
+            <article class="message-row assistant"><div class="message-avatar">K&amp;C</div><div class="message-bubble"><p>Здравствуйте! Я K&amp;C GPT. Помогу с программированием, рабочими задачами и разработкой напитков. С чего начнём?</p></div></article>
+          </section>
+          <details class="history-card glass-card"><summary>История чатов</summary><div id="historyList"></div></details>
         </section>
 
-        <section class="discussion-output" id="discussionOutput">
-          <div class="response-card">
-            <h4>Автор</h4>
-            <p>Пока нет ответа.</p>
-          </div>
-          <div class="response-card">
-            <h4>Критик</h4>
-            <p>Пока нет ответа.</p>
-          </div>
-        </section>
-
-        <section class="panel">
-          <h3 style="margin-top:0; margin-bottom:12px;">История обсуждений</h3>
-          <div id="historyList"></div>
+        <section class="page" id="settingsPage" data-page="settings" aria-labelledby="settingsTitle">
+          <div class="page-heading compact-heading"><div><p class="eyebrow">Личный интерфейс</p><h1 id="settingsTitle">Настройки</h1></div></div>
+          <section class="settings-group glass-card">
+            <h2>Оформление</h2>
+            <div class="choice-row" id="themeChoices">
+              <button class="active" type="button" data-theme="dark">Тёмная</button>
+              <button type="button" data-theme="light">Светлая</button>
+              <button type="button" data-theme="system">Как в iPhone</button>
+            </div>
+          </section>
+          <section class="settings-group glass-card">
+            <div class="setting-row"><div><strong>Боковая панель</strong><small>Оставлять тонкий край справа</small></div><label class="toggle"><input id="railToggle" type="checkbox" checked /><span></span></label></div>
+            <div class="setting-row"><div><strong>Автопроверка</strong><small>Следить за интернетом и сервером</small></div><label class="toggle"><input id="autoCheckToggle" type="checkbox" checked /><span></span></label></div>
+          </section>
+          <section class="settings-group glass-card">
+            <h2>Состояние модулей</h2>
+            <div class="module-list">
+              <div><span class="mini-led" id="internetLed"></span><strong>Интернет</strong><small id="internetModuleState">Проверяем</small></div>
+              <div><span class="mini-led" id="serverLed"></span><strong>GPT‑сервер</strong><small id="serverModuleState">Проверяем</small></div>
+              <div><span class="mini-led standby"></span><strong>VPN</strong><small>Ожидает подключения</small></div>
+              <div><span class="mini-led standby"></span><strong>VK Proxy</strong><small>Ожидает подключения</small></div>
+            </div>
+          </section>
         </section>
       </main>
+
+      <nav class="bottom-nav" aria-label="Основная навигация">
+        <button type="button" data-page-target="chat"><span aria-hidden="true">✦</span><small>GPT</small></button>
+        <button class="active" type="button" data-page-target="home"><span aria-hidden="true">⌂</span><small>Дом</small></button>
+        <button type="button" data-page-target="settings"><span aria-hidden="true">⚙</span><small>Настройки</small></button>
+      </nav>
+
+      <aside class="edge-panel" id="edgePanel" data-state="rail" aria-label="Панель быстрого доступа">
+        <button class="edge-grip" id="edgeGrip" type="button" aria-label="Перетащить панель"><span></span></button>
+        <div class="edge-content">
+          <div class="edge-head"><div><small>Быстрый доступ</small><strong>K&amp;C Control</strong></div><button class="edge-close" id="edgeClose" type="button" aria-label="Свернуть панель">×</button></div>
+          <div class="edge-statuses">
+            <button type="button" data-edge-action="connection"><span class="edge-led checking" id="edgeInternetLed"></span><b>NET</b><small id="edgeInternetText">…</small></button>
+            <button type="button" data-edge-action="server"><span class="edge-led checking" id="edgeServerLed"></span><b>GPT</b><small id="edgeServerText">…</small></button>
+            <button type="button" data-edge-action="vpn"><span class="edge-led standby"></span><b>VPN</b><small>—</small></button>
+            <button type="button" data-edge-action="proxy"><span class="edge-led standby"></span><b>VK</b><small>—</small></button>
+          </div>
+          <div class="edge-actions">
+            <button type="button" id="edgeReconnect"><span>↻</span><small>Проверить</small></button>
+            <button type="button" data-open-page="chat"><span>✦</span><small>GPT</small></button>
+            <button type="button" id="edgeMedia"><span>♪</span><small>Медиа</small></button>
+            <button type="button" data-open-page="home"><span>⌂</span><small>Дом</small></button>
+          </div>
+          <div class="edge-player"><div class="media-art small" aria-hidden="true"><span>K&amp;C</span></div><div><small>Сейчас</small><strong>Медиапанель</strong></div><button type="button" aria-label="Воспроизведение недоступно">▶</button></div>
+        </div>
+      </aside>
     </div>
 
-    <button class="fab" aria-label="Добавить идею" id="fabButton">+</button>
-
+    <div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
+    <section class="bottom-sheet" id="bottomSheet" aria-modal="true" role="dialog" aria-labelledby="sheetTitle" hidden>
+      <div class="sheet-handle"></div><div class="sheet-heading"><h2 id="sheetTitle">Информация</h2><button id="sheetClose" type="button" aria-label="Закрыть">×</button></div><div id="sheetContent"></div>
+    </section>
     <script src="/app.js" defer></script>
   </body>
 </html>

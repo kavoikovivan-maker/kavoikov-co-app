@@ -1,355 +1,399 @@
 #!/usr/bin/env python3
 import json
+import hashlib
+import os
 import sqlite3
 import threading
 import time
 import uuid
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 
 ROOT = Path(__file__).resolve().parent / "pwa"
-DB_PATH = ROOT.parent / "data" / "discussions.db"
+DB_PATH = Path(os.environ.get("KAVOIKOFF_DB_PATH", ROOT.parent / "data" / "chats.db"))
 DB_PATH.parent.mkdir(exist_ok=True)
-if not DB_PATH.exists():
-    source = ROOT / "discussions.db"
-    if not source.exists():
-        source = ROOT / "discussions.backup.db"
-    if source.exists():
-        with sqlite3.connect(source) as src, sqlite3.connect(DB_PATH) as dst:
-            src.backup(dst)
-PORT = 4173
-OLLAMA_HOST = "http://127.0.0.1:11434"
-MODEL_ID = "qwen2.5:3b"
-
-
-def sanitize_text(value: str | None) -> str:
-    text = (value or "").strip()
-    text = text.replace("\r", " ").replace("\n", " ")
-    text = " ".join(text.split())
-    return text[:1200]
+PORT = int(os.environ.get("PORT", "4173"))
+FREE_MODEL = os.environ.get("GROQ_FREE_MODEL", "openai/gpt-oss-20b")
+PRO_MODEL = os.environ.get("GROQ_PRO_MODEL", "openai/gpt-oss-120b")
+FREE_DAILY_MESSAGES = int(os.environ.get("FREE_DAILY_MESSAGES", "10"))
+PRO_DAILY_MESSAGES = int(os.environ.get("PRO_DAILY_MESSAGES", "200"))
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+SYSTEM_PROMPT = (
+    "Ты — личный ИИ-помощник внутри приложения Kavoikoff&CO. "
+    "Отвечай естественно и по делу, по умолчанию на русском языке. "
+    "Помогай с программированием, продуктами, рабочими задачами и технологиями напитков. "
+    "Сохраняй контекст текущего диалога, уточняй только действительно необходимое. "
+    "Ты один помощник и ведёшь обычный прямой диалог с пользователем. "
+    "Не заявляй об абсолютной анонимности или возможностях, которых у приложения нет."
+)
 
 
 def init_db() -> None:
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS sessions (
-            id TEXT PRIMARY KEY,
-            idea TEXT NOT NULL,
-            created_at TEXT NOT NULL
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS chats (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
         )
-        """
-    )
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS messages (
-            id TEXT PRIMARY KEY,
-            session_id TEXT NOT NULL,
-            role TEXT NOT NULL,
-            content TEXT NOT NULL,
-            created_at TEXT NOT NULL
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS clients (
+                id_hash TEXT PRIMARY KEY,
+                plan TEXT NOT NULL CHECK(plan IN ('free', 'pro')),
+                created_at TEXT NOT NULL
+            )
+            """
         )
-        """
-    )
-    conn.execute("CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, payload TEXT NOT NULL, state TEXT NOT NULL, result TEXT NOT NULL)")
-    for job_id, result in conn.execute("SELECT id, result FROM jobs WHERE state IN ('queued','author','critic')").fetchall():
-        partial = json.loads(result)
-        partial['error'] = 'Сервер перезапущен. Автоматического повтора не было.'
-        conn.execute("UPDATE jobs SET state='error', result=? WHERE id=?", (json.dumps(partial, ensure_ascii=False), job_id))
-    conn.commit()
-    conn.close()
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS daily_usage (
+                id_hash TEXT NOT NULL,
+                usage_day TEXT NOT NULL,
+                message_count INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(id_hash, usage_day)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS messages (
+                id TEXT PRIMARY KEY,
+                chat_id TEXT NOT NULL,
+                role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+                content TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(chat_id) REFERENCES chats(id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS jobs (
+                id TEXT PRIMARY KEY,
+                payload TEXT NOT NULL,
+                state TEXT NOT NULL,
+                result TEXT NOT NULL
+            )
+            """
+        )
+        for job_id, payload, result in conn.execute(
+            "SELECT id, payload, result FROM jobs WHERE state IN ('queued', 'generating')"
+        ).fetchall():
+            partial = json.loads(result)
+            job_payload = json.loads(payload)
+            if len(job_payload) >= 3:
+                conn.execute(
+                    """
+                    UPDATE daily_usage SET message_count=MAX(0, message_count-1)
+                    WHERE id_hash=? AND usage_day=?
+                    """,
+                    (job_payload[2], time.strftime("%Y-%m-%d", time.gmtime())),
+                )
+            partial["error"] = "Сервер перезапущен. Сообщение автоматически повторно не отправлялось."
+            conn.execute(
+                "UPDATE jobs SET state='error', result=? WHERE id=?",
+                (json.dumps(partial, ensure_ascii=False), job_id),
+            )
 
 
 init_db()
 
 
-def build_agents():
-    from agno.agent import Agent
-    from agno.models.ollama import Ollama
+def clean_input(value: str | None) -> str:
+    text = (value or "").strip()
+    return text[:8000]
 
-    model = Ollama(
-        id=MODEL_ID,
-        host=OLLAMA_HOST,
-        options={
-            "num_ctx": 1024,
-            "num_predict": 160,
-            "temperature": 0.5,
-            "top_p": 0.85,
-            "repeat_penalty": 1.08,
-        },
-    )
 
-    author = Agent(
+def clean_output(value: str | None) -> str:
+    text = (value or "").strip()
+    return text[:24000]
+
+
+def get_chat_messages(chat_id: str | None, limit: int = 24) -> list[dict]:
+    if not chat_id:
+        return []
+    with sqlite3.connect(DB_PATH) as conn:
+        exists = conn.execute("SELECT 1 FROM chats WHERE id=?", (chat_id,)).fetchone()
+        if not exists:
+            return []
+        rows = conn.execute(
+            """
+            SELECT role, content FROM (
+                SELECT role, content, created_at, rowid
+                FROM messages WHERE chat_id=?
+                ORDER BY created_at DESC, rowid DESC LIMIT ?
+            ) ORDER BY created_at ASC, rowid ASC
+            """,
+            (chat_id, limit),
+        ).fetchall()
+    return [{"role": role, "content": content} for role, content in rows]
+
+
+def run_assistant(message: str, chat_id: str | None = None, plan: str = "free", progress=lambda content: None) -> dict:
+    api_key = os.environ.get("GROQ_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("GROQ_API_KEY не настроен на сервере")
+
+    from openai import OpenAI
+
+    client = OpenAI(api_key=api_key, base_url=GROQ_BASE_URL, timeout=90.0)
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages.extend(get_chat_messages(chat_id))
+    messages.append({"role": "user", "content": message})
+    started = time.perf_counter()
+    model = PRO_MODEL if plan == "pro" else FREE_MODEL
+    completion = client.chat.completions.create(
         model=model,
-        name="author",
-        instructions=(
-            "Ты — автор продукта Kavoikov&CO. "
-            "Отвечай на русском. "
-            "Главная цель: предложить один быстрый и полезный шаг, который реально улучшает продуктивность пользователя. "
-            "Не придумывай огромные фичи и не расписывай архитектуру. "
-            "Не говори о том, что ещё невозможно сделать. "
-            "Дай 1 конкретный шаг: что сделать, зачем это полезно и как быстро проверить результат. "
-            "Формат: 2 коротких предложения, максимум 50–80 слов. "
-            "Это должна быть идея для реального пользователя, а не абстрактный план."
-        ),
-        additional_context=(
-            "Ты работаешь в продукте, который помогает человеку быстро сохранять голосовые мысли, "
-            "потом превращать их в заметки, задачи и план действий. "
-            "Ты должен думать как практик: полезно, просто, понятно, быстро в проверке. "
-            "Лучший результат — одна маленькая передовая идея, которую можно начать использовать сразу."
-        ),
+        messages=messages,
+        max_completion_tokens=1800,
+        stream=True,
     )
-
-    critic = Agent(
-        model=model,
-        name="critic",
-        instructions=(
-            "Ты — критик продукта Kavoikov&CO. "
-            "Сначала проверь, что предложил автор, относительно реальной пользы и понятности. "
-            "Не придумывай отсутствующие функции. "
-            "Если ответ автора логичен, полезен и понятен — скажи, что явного недостатка нет. "
-            "Если есть реальная проблема, назови только одно важное улучшение. "
-            "Не спорь ради спора. Не выдумывай сложности. "
-            "Отвечай коротко, на русском, 1-2 предложения."
-        ),
-        additional_context=(
-            "Смотри на продукт через призму UX, повседневной пользы и скорости освоения. "
-            "Если проблема неочевидна — честно скажи, что явного недостатка нет. "
-            "Лучшее улучшение — то, которое реально повышает ценность и не усложняет интерфейс."
-        ),
-    )
-    return author, critic
-
-
-def get_session_context(session_id: str | None, prompt_idea: str, limit: int = 6):
-    if not session_id:
-        return f"Исходная идея: {prompt_idea}\n\n"
-
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    row = conn.execute(
-        "SELECT id, idea FROM sessions WHERE id = ?",
-        (session_id,),
-    ).fetchone()
-    if row is None:
-        conn.close()
-        return f"Исходная идея: {prompt_idea}\n\n"
-
-    base_idea = row["idea"]
-    recent = conn.execute(
-        "SELECT role, content FROM messages WHERE session_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?",
-        (session_id, limit),
-    ).fetchall()
-    conn.close()
-
-    if not recent:
-        return f"Исходная идея: {base_idea}\n\nТекущее продолжение: {prompt_idea}\n\n"
-
-    history = "\n".join(
-        f"{ {'author': 'Автор', 'critic': 'Критик', 'user': 'Пользователь'}.get(item['role'], item['role'])}: {item['content'][:450]}"
-        for item in reversed(recent[:3])
-    )
-    return (
-        f"Исходная идея: {base_idea}\n\n"
-        f"Последние реплики в текущей сессии:\n{history}\n\n"
-        f"Текущее продолжение: {prompt_idea}\n\n"
-    )
-
-
-def run_discussion(idea: str, session_id: str | None = None, progress=lambda stage, data: None):
-    author, critic = build_agents()
-    context_block = get_session_context(session_id, idea)
-
-    author_prompt = (
-        f"{context_block}"
-        "Сформулируй один быстрый и практичный следующий шаг для этой идеи. "
-        "Твоя задача — предложить действие, которое можно начать сразу и проверить в течение дня. "
-        "Не придумывай сложную систему и не описывай весь продукт целиком. "
-        "Сделай ответ полезным и понятным для обычного пользователя. "
-        "Формат: 2 коротких предложения, без списка, без вводных слов, без лишней воды."
-    )
-    progress("author", {})
-    author_started = time.perf_counter()
-    author_result = author.run(author_prompt)
-    author_seconds = time.perf_counter() - author_started
-    author_content = sanitize_text(getattr(author_result, "content", "") or "")
-    if not author_content:
-        author_content = "Сделайте первый шаг максимально простым: зафиксируйте идею и проверьте, что она действительно решает одну реальную задачу."
-
-    partial = {"author": {"content": author_content, "time_sec": round(author_seconds, 3)}}
-    progress("critic", partial)
-    critic_prompt = (
-        f"{context_block}"
-        f"Ответ автора: {author_content}\n\n"
-        "Оцени этот ответ как критик продукта. "
-        "Если ответ автора полезен, понятен и реалистичен — ответь: 'Явного недостатка нет'. "
-        "Если есть реальная проблема, предложи одно конкретное улучшение. "
-        "Не выдумывай функции и не спорь ради спора. "
-        "Дай один короткий вывод на русском."
-    )
-    critic_started = time.perf_counter()
-    critic_result = critic.run(critic_prompt)
-    critic_seconds = time.perf_counter() - critic_started
-    critic_content = sanitize_text(getattr(critic_result, "content", "") or "")
-    if not critic_content:
-        critic_content = "Явного недостатка нет. Ответ автора достаточно практичен и понятен для первого шага."
-
+    parts = []
+    last_progress = 0.0
+    for chunk in completion:
+        delta = chunk.choices[0].delta.content if chunk.choices else None
+        if not delta:
+            continue
+        parts.append(delta)
+        now = time.perf_counter()
+        if now - last_progress >= 0.12:
+            progress(clean_output("".join(parts)))
+            last_progress = now
+    content = clean_output("".join(parts))
+    if not content:
+        content = "Не удалось получить текст ответа. Попробуйте сформулировать запрос ещё раз."
     return {
-        "author": {"content": author_content, "time_sec": round(author_seconds, 3)},
-        "critic": {"content": critic_content, "time_sec": round(critic_seconds, 3)},
+        "content": content,
+        "time_sec": round(time.perf_counter() - started, 3),
+        "model": model,
     }
 
 
-def save_discussion(idea: str, data: dict, session_id: str | None = None):
+def save_exchange(message: str, answer: dict, chat_id: str | None = None) -> str:
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    conn = sqlite3.connect(DB_PATH)
-    if session_id:
-        existing = conn.execute(
-            "SELECT id FROM sessions WHERE id = ?",
-            (session_id,),
-        ).fetchone()
-        if existing is None:
-            session_id = None
-
-    if session_id is None:
-        session_id = uuid.uuid4().hex
+    with sqlite3.connect(DB_PATH) as conn:
+        if chat_id and not conn.execute("SELECT 1 FROM chats WHERE id=?", (chat_id,)).fetchone():
+            chat_id = None
+        if not chat_id:
+            chat_id = uuid.uuid4().hex
+            title = " ".join(message.split())[:64] or "Новый чат"
+            conn.execute("INSERT INTO chats VALUES (?, ?, ?, ?)", (chat_id, title, now, now))
+        else:
+            conn.execute("UPDATE chats SET updated_at=? WHERE id=?", (now, chat_id))
         conn.execute(
-            "INSERT INTO sessions (id, idea, created_at) VALUES (?, ?, ?)",
-            (session_id, idea, now),
+            "INSERT INTO messages VALUES (?, ?, 'user', ?, ?)",
+            (uuid.uuid4().hex, chat_id, message, now),
         )
-
-    conn.execute("INSERT INTO messages VALUES (?, ?, ?, ?, ?)",
-                 (uuid.uuid4().hex, session_id, "user", idea, now))
-    conn.execute(
-        "INSERT INTO messages (id, session_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-        (uuid.uuid4().hex, session_id, "author", data["author"]["content"], now),
-    )
-    conn.execute(
-        "INSERT INTO messages (id, session_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-        (uuid.uuid4().hex, session_id, "critic", data["critic"]["content"], now),
-    )
-    conn.commit()
-    conn.close()
-    return session_id
+        conn.execute(
+            "INSERT INTO messages VALUES (?, ?, 'assistant', ?, ?)",
+            (uuid.uuid4().hex, chat_id, answer["content"], now),
+        )
+    return chat_id
 
 
-def fetch_history():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        "SELECT id, idea, created_at FROM sessions ORDER BY created_at DESC"
-    ).fetchall()
-    items = []
-    for row in rows:
-        msgs = conn.execute(
-            "SELECT role, content, created_at FROM messages WHERE session_id = ? ORDER BY created_at ASC, rowid ASC",
-            (row["id"],),
+def fetch_chats() -> list[dict]:
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        chats = conn.execute(
+            "SELECT id, title, created_at, updated_at FROM chats ORDER BY updated_at DESC"
         ).fetchall()
-        items.append({
-            "id": row["id"],
-            "idea": row["idea"],
-            "created_at": row["created_at"],
-            "messages": [
-                {"role": msg["role"], "content": msg["content"], "created_at": msg["created_at"]}
-                for msg in msgs
-            ],
-        })
-    conn.close()
+        items = []
+        for chat in chats:
+            messages = conn.execute(
+                "SELECT role, content, created_at FROM messages WHERE chat_id=? ORDER BY created_at, rowid",
+                (chat["id"],),
+            ).fetchall()
+            items.append(
+                {
+                    "id": chat["id"],
+                    "title": chat["title"],
+                    "created_at": chat["created_at"],
+                    "updated_at": chat["updated_at"],
+                    "messages": [dict(message) for message in messages],
+                }
+            )
     return items
 
 
 JOB_LOCK = threading.Lock()
 
 
-def read_job(job_id):
+class QuotaExceeded(Exception):
+    pass
+
+
+def client_hash(value: str | None) -> str:
+    parsed = uuid.UUID(value or "")
+    return hashlib.sha256(str(parsed).encode("utf-8")).hexdigest()
+
+
+def usage_day() -> str:
+    return time.strftime("%Y-%m-%d", time.gmtime())
+
+
+def usage_info(conn: sqlite3.Connection, id_hash: str) -> dict:
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    conn.execute(
+        "INSERT OR IGNORE INTO clients VALUES (?, 'free', ?)",
+        (id_hash, now),
+    )
+    plan = conn.execute("SELECT plan FROM clients WHERE id_hash=?", (id_hash,)).fetchone()[0]
+    row = conn.execute(
+        "SELECT message_count FROM daily_usage WHERE id_hash=? AND usage_day=?",
+        (id_hash, usage_day()),
+    ).fetchone()
+    used = row[0] if row else 0
+    limit = PRO_DAILY_MESSAGES if plan == "pro" else FREE_DAILY_MESSAGES
+    return {"plan": plan, "used": used, "limit": limit, "remaining": max(0, limit - used), "usage_day": usage_day()}
+
+
+def claim_usage(conn: sqlite3.Connection, id_hash: str) -> str:
+    info = usage_info(conn, id_hash)
+    if info["used"] >= info["limit"]:
+        raise QuotaExceeded()
+    conn.execute(
+        """
+        INSERT INTO daily_usage (id_hash, usage_day, message_count) VALUES (?, ?, 1)
+        ON CONFLICT(id_hash, usage_day) DO UPDATE SET message_count=message_count+1
+        """,
+        (id_hash, usage_day()),
+    )
+    return info["plan"]
+
+
+def release_usage(id_hash: str) -> None:
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            UPDATE daily_usage SET message_count=MAX(0, message_count-1)
+            WHERE id_hash=? AND usage_day=?
+            """,
+            (id_hash, usage_day()),
+        )
+
+
+def read_job(job_id: str) -> dict | None:
     with sqlite3.connect(DB_PATH) as conn:
         row = conn.execute("SELECT state, result FROM jobs WHERE id=?", (job_id,)).fetchone()
     return {"job_id": job_id, "state": row[0], **json.loads(row[1])} if row else None
 
 
-def update_job(job_id, state, data):
+def update_job(job_id: str, state: str, data: dict) -> None:
     with sqlite3.connect(DB_PATH) as conn:
-        conn.execute("UPDATE jobs SET state=?, result=? WHERE id=?", (state, json.dumps(data, ensure_ascii=False), job_id))
+        conn.execute(
+            "UPDATE jobs SET state=?, result=? WHERE id=?",
+            (state, json.dumps(data, ensure_ascii=False), job_id),
+        )
 
 
-def worker(job_id, idea, session_id):
-    partial = {}
-    def progress(state, data):
-        partial.update(data)
-        update_job(job_id, state, partial)
+def worker(job_id: str, message: str, chat_id: str | None, id_hash: str, plan: str) -> None:
+    base = {"user_message": message, "plan": plan}
     try:
-        result = run_discussion(idea, session_id, progress)
-        sid = save_discussion(idea, result, session_id)
-        update_job(job_id, "done", {**result, "session_id": sid})
+        update_job(job_id, "generating", base)
+        def report_partial(content: str) -> None:
+            update_job(job_id, "generating", {**base, "assistant": {"content": content}})
+
+        answer = run_assistant(message, chat_id, plan, report_partial)
+        saved_chat_id = save_exchange(message, answer, chat_id)
+        update_job(job_id, "done", {**base, "assistant": answer, "chat_id": saved_chat_id})
     except Exception as exc:
-        print("Discussion failed:", type(exc).__name__, flush=True)
-        update_job(job_id, "error", {**partial, "error": "Модель не завершила ответ. Ответ Автора, если получен, сохранён. Проверьте Ollama и журнал сервера."})
+        release_usage(id_hash)
+        print("Chat failed:", type(exc).__name__, flush=True)
+        public_error = str(exc) if isinstance(exc, RuntimeError) else "Помощник не завершил ответ. Проверьте ключ и журнал сервера."
+        update_job(job_id, "error", {**base, "error": public_error})
 
 
-class DiscussionHandler(SimpleHTTPRequestHandler):
+class ChatHandler(SimpleHTTPRequestHandler):
+    PUBLIC_FILES = {
+        "/", "/index.html", "/styles.css", "/sw.js", "/app.js", "/manifest.webmanifest",
+        "/icon.svg", "/icon-180.png", "/icon-192.png", "/icon-512.png",
+    }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
     def do_GET(self):
-        path = urlparse(self.path).path
+        parsed_url = urlparse(self.path)
+        path = parsed_url.path
         if path == "/api/health":
-            return self.send_json({"status": "ok"})
-        if path == "/api/discussions":
-            return self.send_json({"items": fetch_history()})
+            return self.send_json(
+                {"status": "ok", "assistant": "configured" if os.environ.get("GROQ_API_KEY") else "missing_key"}
+            )
+        if path == "/api/chats":
+            return self.send_json({"items": fetch_chats()})
+        if path == "/api/usage":
+            try:
+                id_hash = client_hash(parse_qs(parsed_url.query).get("client_id", [""])[0])
+            except (ValueError, AttributeError):
+                return self.send_json({"error": "Некорректный идентификатор приложения"}, 400)
+            with sqlite3.connect(DB_PATH) as conn:
+                info = usage_info(conn, id_hash)
+            return self.send_json(info)
         if path.startswith("/api/jobs/"):
             job = read_job(path.rsplit("/", 1)[-1])
             return self.send_json(job or {"error": "Задание не найдено"}, 200 if job else 404)
-        # Only explicit public assets, never SQLite backups or directory listings.
-        if path not in ("/", "/index.html", "/sw.js", "/app.js", "/manifest.webmanifest", "/icon.svg", "/icon-180.png", "/icon-192.png", "/icon-512.png"):
+        if path not in self.PUBLIC_FILES:
             return self.send_error(404)
         super().do_GET()
 
     def do_HEAD(self):
-        if urlparse(self.path).path not in ("/", "/index.html", "/sw.js", "/app.js", "/manifest.webmanifest", "/icon.svg", "/icon-180.png", "/icon-192.png", "/icon-512.png"):
+        if urlparse(self.path).path not in self.PUBLIC_FILES:
             return self.send_error(404)
         super().do_HEAD()
 
     def do_POST(self):
-        if urlparse(self.path).path != "/api/discussions":
+        if urlparse(self.path).path != "/api/chat":
             return self.send_error(404)
-        # Browser requests must be same-origin; authentication stays at private Codespaces tunnel.
         origin = self.headers.get("Origin")
         if origin and urlparse(origin).netloc != self.headers.get("Host"):
             return self.send_json({"error": "Недопустимый источник"}, 403)
         try:
             length = int(self.headers.get("Content-Length", "0"))
-            if not 0 < length <= 16000:
+            if not 0 < length <= 20000:
                 raise ValueError()
             data = json.loads(self.rfile.read(length))
-            idea = data.get("idea", "").strip()
+            message = clean_input(data.get("message"))
             job_id = data.get("request_id", "")
-            session_id = data.get("session_id") or None
+            chat_id = data.get("chat_id") or None
+            id_hash = client_hash(data.get("client_id"))
             uuid.UUID(job_id)
-            if not idea or len(idea) > 1200 or (session_id and not isinstance(session_id, str)):
+            if not message or (chat_id and not isinstance(chat_id, str)):
                 raise ValueError()
         except (ValueError, TypeError, AttributeError):
-            return self.send_json({"error": "Нужна идея до 1200 символов и корректный идентификатор запроса"}, 400)
-        payload = json.dumps([idea, session_id], ensure_ascii=False)
+            return self.send_json({"error": "Нужно сообщение до 8000 символов"}, 400)
+
+        payload = json.dumps([message, chat_id, id_hash], ensure_ascii=False)
         with JOB_LOCK, sqlite3.connect(DB_PATH) as conn:
             previous = conn.execute("SELECT payload FROM jobs WHERE id=?", (job_id,)).fetchone()
             if previous:
                 if previous[0] != payload:
                     return self.send_json({"error": "Идентификатор уже используется"}, 409)
                 return self.send_json(read_job(job_id), 200)
-            if session_id and not conn.execute("SELECT 1 FROM sessions WHERE id=?", (session_id,)).fetchone():
-                return self.send_json({"error": "Сессия не найдена"}, 404)
-            if conn.execute("SELECT 1 FROM jobs WHERE state IN ('queued','author','critic')").fetchone():
-                return self.send_json({"error": "Команда уже отвечает. Дождитесь завершения."}, 409)
-            conn.execute("INSERT INTO jobs VALUES (?, ?, 'queued', '{}')", (job_id, payload))
+            if chat_id and not conn.execute("SELECT 1 FROM chats WHERE id=?", (chat_id,)).fetchone():
+                return self.send_json({"error": "Чат не найден"}, 404)
+            if conn.execute("SELECT 1 FROM jobs WHERE state IN ('queued', 'generating')").fetchone():
+                return self.send_json({"error": "Помощник уже отвечает. Дождитесь завершения."}, 409)
+            try:
+                plan = claim_usage(conn, id_hash)
+            except QuotaExceeded:
+                return self.send_json({"error": "Бесплатный лимит на сегодня закончился", "code": "daily_limit"}, 429)
+            result = json.dumps({"user_message": message, "plan": plan}, ensure_ascii=False)
+            conn.execute("INSERT INTO jobs VALUES (?, ?, 'queued', ?)", (job_id, payload, result))
             conn.commit()
-            threading.Thread(target=worker, args=(job_id, idea, session_id), daemon=True).start()
-        return self.send_json({"job_id": job_id, "state": "queued"}, 202)
+            threading.Thread(target=worker, args=(job_id, message, chat_id, id_hash, plan), daemon=True).start()
+        return self.send_json({"job_id": job_id, "state": "queued", "user_message": message, "plan": plan}, 202)
 
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
         super().end_headers()
 
     def send_json(self, payload, status=200):
@@ -365,11 +409,11 @@ class DiscussionHandler(SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    httpd = ThreadingHTTPServer(("0.0.0.0", PORT), DiscussionHandler)
-    print(f"Serving Kavoikov&CO on port {PORT}", flush=True)
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), ChatHandler)
+    print(f"Serving Kavoikoff&CO on port {PORT}", flush=True)
     try:
-        httpd.serve_forever()
+        server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
-        httpd.server_close()
+        server.server_close()
