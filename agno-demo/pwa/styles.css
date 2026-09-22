@@ -95,3 +95,74 @@ html[data-theme="dark"] .primary3d{
     inset 0 3px 8px rgba(70,74,78,.18);
   transform:translateY(2px) scale(.985);
 }
+
+
+/* K&C premium launch screen */
+.launch-screen{
+  position:fixed;inset:0;z-index:9999;display:grid;place-items:center;
+  background:
+    radial-gradient(circle at 50% 44%,rgba(255,255,255,.07),transparent 34%),
+    linear-gradient(180deg,#0d1116 0%,#11161c 54%,#0a0e12 100%);
+  opacity:1;visibility:visible;pointer-events:all;
+  transition:opacity .42s cubic-bezier(.4,0,.2,1),visibility .42s;
+  overflow:hidden;
+}
+.launch-screen::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(115deg,transparent 38%,rgba(255,255,255,.055) 49%,transparent 60%);
+  transform:translateX(-80%);animation:kcScreenSheen 1.05s .16s ease-out forwards;
+}
+.launch-logo{
+  position:relative;padding:.35em .5em;transform:scale(.975);
+  animation:kcLogoEnter 1.08s cubic-bezier(.2,.7,.2,1) both;
+}
+.launch-logo span{
+  position:relative;display:block;color:#f4f5f6;
+  font-weight:800;font-size:clamp(3.7rem,18vw,5.6rem);
+  letter-spacing:-.085em;line-height:1;
+  text-shadow:0 0 1px rgba(255,255,255,.9),0 0 18px rgba(220,232,242,.14),0 14px 34px rgba(0,0,0,.34);
+}
+.launch-logo span::before{
+  content:"";position:absolute;inset:-24% -18%;border-radius:50%;
+  background:radial-gradient(circle,rgba(230,239,248,.15),rgba(230,239,248,.035) 35%,transparent 66%);
+  filter:blur(12px);z-index:-1;animation:kcGlow 1.05s ease-out both;
+}
+.launch-logo span::after{
+  content:"";position:absolute;top:-8%;bottom:-8%;width:26%;
+  left:-42%;transform:skewX(-18deg);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent);
+  filter:blur(2px);opacity:0;animation:kcLogoSweep .72s .34s ease-out forwards;
+}
+.launch-screen.is-hiding{opacity:0;visibility:hidden;pointer-events:none}
+html[data-theme="light"] .launch-screen{
+  background:
+    radial-gradient(circle at 50% 44%,rgba(255,255,255,.92),transparent 35%),
+    linear-gradient(180deg,#e5e6e6 0%,#d8d9d9 58%,#cfd1d2 100%);
+}
+html[data-theme="light"] .launch-logo span{
+  color:#202328;text-shadow:0 1px 0 rgba(255,255,255,.75),0 0 16px rgba(255,255,255,.48),0 14px 30px rgba(70,74,78,.16);
+}
+html[data-theme="light"] .launch-logo span::before{
+  background:radial-gradient(circle,rgba(255,255,255,.88),rgba(255,255,255,.22) 38%,transparent 68%);
+}
+@keyframes kcLogoEnter{
+  0%{opacity:0;transform:scale(.94);filter:blur(7px)}
+  38%{opacity:1;filter:blur(0)}
+  72%{transform:scale(1.012)}
+  100%{opacity:1;transform:scale(1)}
+}
+@keyframes kcGlow{
+  0%{opacity:0;transform:scale(.78)}
+  48%{opacity:1;transform:scale(1.06)}
+  100%{opacity:.55;transform:scale(1)}
+}
+@keyframes kcLogoSweep{
+  0%{left:-42%;opacity:0}
+  18%{opacity:.5}
+  54%{opacity:.85}
+  100%{left:118%;opacity:0}
+}
+@keyframes kcScreenSheen{from{transform:translateX(-80%)}to{transform:translateX(85%)}}
+@media(prefers-reduced-motion:reduce){
+  .launch-logo,.launch-logo span::before,.launch-logo span::after,.launch-screen::after{animation:none!important}
+}

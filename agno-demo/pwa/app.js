@@ -210,3 +210,13 @@ applyTheme(state.theme); renderGreeting(); checkServer(); requestProfile();
 setInterval(()=>{if(state.autoCheck)checkServer();},30000);
 
 if('serviceWorker'in navigator){navigator.serviceWorker.register('/sw.js',{updateViaCache:'none'}).then(r=>r.update()).catch(()=>{});}
+
+
+// Premium K&C launch transition
+const launchScreen=document.getElementById('launchScreen');
+if(launchScreen){
+  window.setTimeout(()=>{
+    launchScreen.classList.add('is-hiding');
+    window.setTimeout(()=>launchScreen.remove(),460);
+  },1200);
+}
