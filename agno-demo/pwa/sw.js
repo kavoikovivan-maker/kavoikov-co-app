@@ -1,5 +1,5 @@
-const CACHE='kc-agency-v12';
-const ASSETS=['/','/index.html','/styles.css?v=12','/app.js?v=12','/manifest.webmanifest','/icon-180.png','/icon-192.png','/icon-512.png'];
+const CACHE='kc-agency-v13';
+const ASSETS=['/','/index.html','/styles.css?v=13','/app.js?v=13','/manifest.webmanifest','/icon-180.png','/icon-192.png','/icon-512.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)));self.skipWaiting();});
 self.addEventListener('activate',e=>e.waitUntil((async()=>{for(const k of await caches.keys())if(k!==CACHE&&(k.startsWith('moya-komanda-')||k.startsWith('kc-shell-')||k.startsWith('kc-agency-')))await caches.delete(k);await self.clients.claim();})()));
 self.addEventListener('fetch',e=>{
