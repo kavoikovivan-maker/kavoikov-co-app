@@ -363,16 +363,8 @@ html[data-theme="light"] .agency-orbit i:last-child{border-color:rgba(37,41,46,.
 
 
 /* Final iPhone top area: clean, no blur spill onto controls */
-body::before{
-  content:"";
-  position:fixed;
-  z-index:20;
-  top:0;left:0;right:0;
-  height:env(safe-area-inset-top);
-  pointer-events:none;
-  background:var(--bg);
-}
-body::after{display:none!important}
+
+
 .app{position:relative;z-index:1}
 
 /* Final AGENCY wordmark: crisp and restrained */
@@ -413,4 +405,26 @@ body::after{display:none!important}
 .topbar{
   position:relative;
   z-index:3;
+}
+
+
+/* v21: no custom status-bar overlay; theme itself fills the safe area */
+html,body{
+  background:var(--bg)!important;
+}
+.app{
+  background:linear-gradient(180deg,var(--bg) 0,var(--bg) 118px,var(--bg2) 100%);
+}
+body::before,body::after{
+  content:none!important;
+  display:none!important;
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+  filter:none!important;
+}
+.topbar,
+.topbar *{
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+  filter:none!important;
 }
