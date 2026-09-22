@@ -61,3 +61,37 @@ textarea::placeholder,input::placeholder{color:var(--muted)}
 @media(max-width:390px){.app{padding-left:12px;padding-right:12px}.hero{grid-template-columns:1fr 76px}.hero-copy h1{font-size:1.75rem}.hero-copy h2{font-size:1.16rem}.module-nav{gap:5px}.module3d span{font-size:.58rem}.action3d{min-height:78px;padding:10px}.action3d strong{font-size:.8rem}.action3d small{font-size:.6rem}.brand b{font-size:2.2rem}.icon3d{width:52px;height:52px}.agent-grid{grid-template-columns:1fr}}
 @media(min-width:560px){body{padding:12px 0}.app{min-height:calc(100dvh - 24px);border:1px solid var(--line);border-radius:34px;box-shadow:var(--shadow)}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+
+/* Stronger physical depth for K&C mobile controls */
+.icon3d,.mini3d,.send3d,.back,.action3d,.module3d b,.agent-card,.status-card,.primary3d{
+  box-shadow:
+    0 12px 24px rgba(70,74,78,.28),
+    0 3px 7px rgba(70,74,78,.18),
+    inset 0 2px 1px rgba(255,255,255,.96),
+    inset 0 -3px 5px rgba(90,95,100,.16);
+}
+html[data-theme="dark"] .icon3d,
+html[data-theme="dark"] .mini3d,
+html[data-theme="dark"] .send3d,
+html[data-theme="dark"] .back,
+html[data-theme="dark"] .action3d,
+html[data-theme="dark"] .module3d b,
+html[data-theme="dark"] .agent-card,
+html[data-theme="dark"] .status-card,
+html[data-theme="dark"] .primary3d{
+  box-shadow:
+    0 14px 28px rgba(0,0,0,.46),
+    0 3px 8px rgba(0,0,0,.34),
+    inset 0 2px 1px rgba(255,255,255,.13),
+    inset 0 -3px 6px rgba(0,0,0,.45);
+}
+.action3d,.module3d b,.icon3d,.agent-card,.status-card{
+  border-top-color:rgba(255,255,255,.95);
+  border-left-color:rgba(255,255,255,.82);
+}
+.action3d:active,.module3d:active b,.icon3d:active,.agent-card:active,.status-card:active,.mini3d:active,.send3d:active,.primary3d:active{
+  box-shadow:
+    0 4px 10px rgba(70,74,78,.18),
+    inset 0 3px 8px rgba(70,74,78,.18);
+  transform:translateY(2px) scale(.985);
+}
