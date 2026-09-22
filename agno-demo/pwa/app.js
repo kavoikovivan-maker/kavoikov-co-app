@@ -32,8 +32,8 @@ $('themeButton').onclick=()=>applyTheme(document.documentElement.dataset.theme==
 function greeting(){
   const h=new Date().getHours();
   if(h>=5&&h<12)return 'Доброе утро';
-  if(h>=12&&h<18)return 'Добрый день';
-  if(h>=18&&h<24)return 'Добрый вечер';
+  if(h>=12&&h<17)return 'Добрый день';
+  if(h>=17&&h<24)return 'Добрый вечер';
   return 'Доброй ночи';
 }
 function userName(){ return (localStorage.getItem('kc-agency-name')||'').trim(); }
@@ -42,6 +42,9 @@ function renderGreeting(){
   if(h) h.textContent=`${greeting()}${userName()?', '+userName():''}.`;
 }
 setInterval(renderGreeting,60000);
+window.addEventListener('pageshow',renderGreeting);
+window.addEventListener('focus',renderGreeting);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)renderGreeting();});
 
 function openSheet(title,html){
   $('sheetTitle').textContent=title; $('sheetBody').innerHTML=html;
