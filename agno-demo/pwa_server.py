@@ -378,9 +378,24 @@ class ChatHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
+    def serve_index(self):
+        index_path = ROOT / "index.html"
+        body = index_path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Content-Disposition", "inline")
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
     def do_GET(self):
         parsed_url = urlparse(self.path)
         path = parsed_url.path
+        if path == "/":
+            return self.serve_index()
         if path == "/api/health":
             return self.send_json(
                 {"status": "ok", "assistant": "configured" if os.environ.get("GROQ_API_KEY") else "missing_key", "agents": len(load_agent_library())}
