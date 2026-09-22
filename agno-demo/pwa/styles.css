@@ -403,3 +403,14 @@ body::after{display:none!important}
   -webkit-font-smoothing:antialiased;
   text-rendering:geometricPrecision;
 }
+
+
+/* v20: keep header controls crisp below the iOS status area */
+.topbar .icon3d{
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+}
+.topbar{
+  position:relative;
+  z-index:3;
+}
