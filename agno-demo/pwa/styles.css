@@ -256,3 +256,22 @@ body{min-height:100svh}
   html,body,.app{min-height:100dvh}
   body{background:linear-gradient(180deg,var(--bg),var(--bg2))}
 }
+
+
+/* Solid status-bar background: remove iOS blur/seam */
+body::before{
+  content:"";
+  position:fixed;
+  z-index:0;
+  top:0;left:0;right:0;
+  height:calc(env(safe-area-inset-top) + 2px);
+  background:var(--bg);
+  pointer-events:none;
+}
+.app{position:relative;z-index:1}
+@media (display-mode: standalone){
+  html[data-theme="dark"] body,
+  html[data-theme="dark"] body::before{background:#0b1420}
+  html[data-theme="light"] body,
+  html[data-theme="light"] body::before{background:#d7d8d8}
+}
