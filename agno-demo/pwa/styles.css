@@ -360,7 +360,9 @@ html[data-theme="light"] .agency-orbit i:last-child{border-color:rgba(37,41,46,.
 @media(max-width:390px){.agency-brand b{font-size:1.25rem}.agency-mini-orbit{width:34px;flex-basis:34px}.agency-mini-orbit i{width:22px;height:22px}}
 
 
-/* iPhone status-bar glass: blur ONLY behind clock / Wi-Fi / battery */
+
+
+/* Final iPhone top area: clean, no blur spill onto controls */
 body::before{
   content:"";
   position:fixed;
@@ -368,26 +370,36 @@ body::before{
   top:0;left:0;right:0;
   height:env(safe-area-inset-top);
   pointer-events:none;
-  background:rgba(215,216,216,.42);
-  -webkit-backdrop-filter:blur(14px) saturate(115%);
-  backdrop-filter:blur(14px) saturate(115%);
-  border:0;
+  background:var(--bg);
 }
-html[data-theme="dark"] body::before{
-  background:rgba(11,20,32,.46);
-}
-/* very short fade so the glass ends before the app controls begin */
-body::after{
-  content:"";
-  position:fixed;
-  z-index:19;
-  top:calc(env(safe-area-inset-top) - 1px);
-  left:0;right:0;
-  height:7px;
-  pointer-events:none;
-  background:linear-gradient(180deg,rgba(215,216,216,.22),rgba(215,216,216,0));
-}
-html[data-theme="dark"] body::after{
-  background:linear-gradient(180deg,rgba(11,20,32,.24),rgba(11,20,32,0));
-}
+body::after{display:none!important}
 .app{position:relative;z-index:1}
+
+/* Final AGENCY wordmark: crisp and restrained */
+.brand b{
+  font-size:1.42rem!important;
+  line-height:1!important;
+  letter-spacing:.105em!important;
+  padding-left:.105em!important;
+  font-weight:800!important;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Segoe UI",sans-serif!important;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:geometricPrecision;
+}
+.brand span{
+  margin-top:7px!important;
+  font-size:.60rem!important;
+  letter-spacing:.20em!important;
+  padding-left:.20em!important;
+  font-weight:600!important;
+}
+.launch-logo strong{
+  font-size:clamp(2.35rem,10.5vw,3.5rem)!important;
+  line-height:1!important;
+  letter-spacing:.12em!important;
+  padding-left:.12em!important;
+  font-weight:800!important;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Segoe UI",sans-serif!important;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:geometricPrecision;
+}
