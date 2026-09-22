@@ -1,7 +1,7 @@
-const CACHE='kc-shell-v9';
+const CACHE='kc-agency-v10';
 const ASSETS=['/','/index.html','/styles.css','/app.js','/manifest.webmanifest','/icon-180.png','/icon-192.png','/icon-512.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)));self.skipWaiting();});
-self.addEventListener('activate',e=>e.waitUntil((async()=>{for(const k of await caches.keys())if(k!==CACHE&&(k.startsWith('moya-komanda-')||k.startsWith('kc-shell-')))await caches.delete(k);await self.clients.claim();})()));
+self.addEventListener('activate',e=>e.waitUntil((async()=>{for(const k of await caches.keys())if(k!==CACHE&&(k.startsWith('moya-komanda-')||k.startsWith('kc-shell-')||k.startsWith('kc-agency-')))await caches.delete(k);await self.clients.claim();})()));
 self.addEventListener('fetch',e=>{
  const u=new URL(e.request.url);
  if(e.request.method!=='GET'||u.origin!==self.location.origin||u.pathname.startsWith('/api/'))return;

@@ -1,156 +1,117 @@
 <!doctype html>
-<html lang="ru">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#07090c" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Kavoikoff&CO" />
-    <meta name="description" content="Kavoikoff&CO — личный ИИ-чат и рабочий интерфейс." />
-    <title>Kavoikoff&CO</title>
-    <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
-    <link rel="apple-touch-icon" href="./icon-180.png" />
-    <link rel="stylesheet" href="./styles.css" />
-  </head>
-  <body>
-    <div class="app-shell" id="appShell">
-      <header class="topbar">
-        <div class="brand-mark" aria-hidden="true">K&amp;C</div>
-        <div class="brand-copy">
-          <span>Kavoikoff&amp;CO</span>
-          <small id="topStatus">Проверяем соединение…</small>
+<html lang="ru" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#d7d8d8" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="K&C Agency" />
+  <title>K&C Agency</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icon-180.png" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <button class="icon3d" id="profileButton" aria-label="Профиль">●</button>
+    <div class="brand"><b>K&C</b><span>AGENCY</span></div>
+    <div class="top-actions">
+      <button class="icon3d" id="themeButton" aria-label="Сменить тему">☼</button>
+      <button class="icon3d" id="notifyButton" aria-label="События">♟<i id="notifyBadge">0</i></button>
+    </div>
+  </header>
+
+  <main>
+    <section class="page active" data-page="home">
+      <section class="hero glass">
+        <div class="hero-copy"><span>AI • PEOPLE • RESULTS</span><h1>Добрый вечер.</h1><h2>Какую задачу запустить сегодня?</h2></div>
+        <div class="hero-mark">◯◯<small>БОЛЬШЕ<br>ВОЗМОЖНОСТЕЙ<br>ВМЕСТЕ</small></div>
+        <div class="hero-grid">
+          <button class="action3d" data-go="tasks"><b>＋</b><span><strong>Поставить задачу</strong><small>Описать и запустить</small></span></button>
+          <button class="action3d" data-go="agents"><b>▶</b><span><strong>Запустить агентов</strong><small>Выбрать команду</small></span></button>
+          <button class="action3d" data-go="projects"><b>▤</b><span><strong>Проверить проект</strong><small>Анализ и рекомендации</small></span></button>
+          <button class="action3d" data-go="memory"><b>◉</b><span><strong>Память и база</strong><small>Знания и контекст</small></span></button>
         </div>
-        <button class="icon-button theme-button" id="themeButton" type="button" aria-label="Сменить тему"><span aria-hidden="true">◐</span></button>
-      </header>
+      </section>
 
-      <main class="page-stack">
-        <section class="page active" id="homePage" data-page="home" aria-labelledby="homeTitle">
-          <div class="page-heading">
-            <div><p class="eyebrow">Защищённое пространство</p><h1 id="homeTitle">Соединение</h1></div>
-            <div class="status-orb checking" id="connectionOrb" aria-label="Проверка соединения"><span></span></div>
-          </div>
-
-          <div class="mode-switch" id="modeSwitch" role="group" aria-label="Режим соединения">
-            <button class="active" type="button" data-mode="wifi">Wi‑Fi</button>
-            <button type="button" data-mode="vpn">VPN</button>
-            <button type="button" data-mode="proxy">VK Proxy</button>
-          </div>
-
-          <section class="connection-card glass-card">
-            <div class="connection-title">
-              <div><span class="connection-label" id="connectionLabel">Интернет</span><strong id="connectionState">Проверяем…</strong></div>
-              <div class="signal-bars" id="signalBars" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-            </div>
-            <div class="traffic-grid">
-              <article class="metric-card"><span>↑ Передано</span><strong id="txValue">0 КБ</strong><small id="txRate">За эту сессию</small></article>
-              <article class="metric-card"><span>↓ Получено</span><strong id="rxValue">0 КБ</strong><small id="rxRate">За эту сессию</small></article>
-            </div>
-            <div class="compact-stats">
-              <div><span>Сервер</span><strong id="serverLatency">—</strong></div>
-              <div><span>Сессия</span><strong id="uptimeValue">00:00</strong></div>
-              <div><span>Повторы</span><strong id="reconnectValue">0</strong></div>
-            </div>
-            <button class="primary-button" id="connectionButton" type="button">Проверить соединение</button>
-            <div class="tool-row">
-              <button class="tool-button" id="logsButton" type="button"><span class="tool-icon" aria-hidden="true">≡</span><span>Журнал</span></button>
-              <button class="tool-button" id="speedButton" type="button"><span class="tool-icon" aria-hidden="true">◴</span><span>Скорость</span></button>
-              <button class="tool-button" data-open-page="settings" type="button"><span class="tool-icon" aria-hidden="true">⚙</span><span>Настройки</span></button>
-            </div>
-          </section>
-
-          <section class="media-card glass-card" id="mediaCard">
-            <div class="media-art" aria-hidden="true"><span>K&amp;C</span></div>
-            <div class="media-copy"><span>Медиапанель</span><strong id="mediaTitle">Ничего не воспроизводится</strong><div class="media-progress"><span></span></div></div>
-            <button class="round-button" id="mediaButton" type="button" aria-label="Открыть медиапанель">›</button>
-          </section>
-        </section>
-
-        <section class="page" id="chatPage" data-page="chat" aria-labelledby="chatTitle">
-          <div class="page-heading compact-heading">
-            <div><p class="eyebrow">Ваш личный помощник</p><h1 id="chatTitle">K&amp;C GPT</h1></div>
-            <button id="newDiscussionButton" type="button" class="small-button">Новый чат</button>
-          </div>
-          <section class="plan-strip glass-card">
-            <div class="plan-copy"><span id="usagePlan">Бесплатный план</span><strong id="usageLabel">Проверяем лимит…</strong></div>
-            <div class="usage-track" aria-hidden="true"><span id="usageBar"></span></div>
-            <button id="upgradeButton" type="button">Pro</button>
-          </section>
-          <section class="composer glass-card">
-            <label for="ideaInput">Сообщение</label>
-            <textarea maxlength="1200" id="ideaInput" placeholder="Опишите задачу или идею…"></textarea>
-            <div class="composer-actions">
-              <button id="starterOne" type="button" class="quiet-button">Программирование</button>
-              <button id="starterTwo" type="button" class="quiet-button">Новый вкус</button>
-              <button id="discussButton" type="button" class="send-button" aria-label="Отправить">↑</button>
-            </div>
-            <button id="checkButton" type="button" class="small-button" hidden>Проверить ответ</button>
-            <div id="statusBox" class="status-box" aria-live="polite">Готов к работе</div>
-          </section>
-          <section class="discussion-output" id="discussionOutput">
-            <article class="message-row assistant"><div class="message-avatar">K&amp;C</div><div class="message-bubble"><p>Здравствуйте! Я K&amp;C GPT. Помогу с программированием, рабочими задачами и разработкой напитков. С чего начнём?</p></div></article>
-          </section>
-          <details class="history-card glass-card"><summary>История чатов</summary><div id="historyList"></div></details>
-        </section>
-
-        <section class="page" id="settingsPage" data-page="settings" aria-labelledby="settingsTitle">
-          <div class="page-heading compact-heading"><div><p class="eyebrow">Личный интерфейс</p><h1 id="settingsTitle">Настройки</h1></div></div>
-          <section class="settings-group glass-card">
-            <h2>Оформление</h2>
-            <div class="choice-row" id="themeChoices">
-              <button class="active" type="button" data-theme="dark">Тёмная</button>
-              <button type="button" data-theme="light">Светлая</button>
-              <button type="button" data-theme="system">Как в iPhone</button>
-            </div>
-          </section>
-          <section class="settings-group glass-card">
-            <div class="setting-row"><div><strong>Боковая панель</strong><small>Оставлять тонкий край справа</small></div><label class="toggle"><input id="railToggle" type="checkbox" checked /><span></span></label></div>
-            <div class="setting-row"><div><strong>Автопроверка</strong><small>Следить за интернетом и сервером</small></div><label class="toggle"><input id="autoCheckToggle" type="checkbox" checked /><span></span></label></div>
-          </section>
-          <section class="settings-group glass-card">
-            <h2>Состояние модулей</h2>
-            <div class="module-list">
-              <div><span class="mini-led" id="internetLed"></span><strong>Интернет</strong><small id="internetModuleState">Проверяем</small></div>
-              <div><span class="mini-led" id="serverLed"></span><strong>GPT‑сервер</strong><small id="serverModuleState">Проверяем</small></div>
-              <div><span class="mini-led standby"></span><strong>VPN</strong><small>Ожидает подключения</small></div>
-              <div><span class="mini-led standby"></span><strong>VK Proxy</strong><small>Ожидает подключения</small></div>
-            </div>
-          </section>
-        </section>
-      </main>
-
-      <nav class="bottom-nav" aria-label="Основная навигация">
-        <button type="button" data-page-target="chat"><span aria-hidden="true">✦</span><small>GPT</small></button>
-        <button class="active" type="button" data-page-target="home"><span aria-hidden="true">⌂</span><small>Дом</small></button>
-        <button type="button" data-page-target="settings"><span aria-hidden="true">⚙</span><small>Настройки</small></button>
+      <nav class="module-nav">
+        <button class="module3d" data-go="chat"><b>•••</b><span>Чат</span></button>
+        <button class="module3d" data-go="tasks"><b>✓</b><span>Задачи</span></button>
+        <button class="module3d" data-go="agents"><b>♟</b><span>Агенты</span></button>
+        <button class="module3d" data-go="projects"><b>▰</b><span>Проекты</span></button>
+        <button class="module3d" data-go="memory"><b>◉</b><span>Память</span></button>
+        <button class="module3d" data-go="settings"><b>⚙</b><span>Настройки</span></button>
       </nav>
 
-      <aside class="edge-panel" id="edgePanel" data-state="rail" aria-label="Панель быстрого доступа">
-        <button class="edge-grip" id="edgeGrip" type="button" aria-label="Перетащить панель"><span></span></button>
-        <div class="edge-content">
-          <div class="edge-head"><div><small>Быстрый доступ</small><strong>K&amp;C Control</strong></div><button class="edge-close" id="edgeClose" type="button" aria-label="Свернуть панель">×</button></div>
-          <div class="edge-statuses">
-            <button type="button" data-edge-action="connection"><span class="edge-led checking" id="edgeInternetLed"></span><b>NET</b><small id="edgeInternetText">…</small></button>
-            <button type="button" data-edge-action="server"><span class="edge-led checking" id="edgeServerLed"></span><b>GPT</b><small id="edgeServerText">…</small></button>
-            <button type="button" data-edge-action="vpn"><span class="edge-led standby"></span><b>VPN</b><small>—</small></button>
-            <button type="button" data-edge-action="proxy"><span class="edge-led standby"></span><b>VK</b><small>—</small></button>
-          </div>
-          <div class="edge-actions">
-            <button type="button" id="edgeReconnect"><span>↻</span><small>Проверить</small></button>
-            <button type="button" data-open-page="chat"><span>✦</span><small>GPT</small></button>
-            <button type="button" id="edgeMedia"><span>♪</span><small>Медиа</small></button>
-            <button type="button" data-open-page="home"><span>⌂</span><small>Дом</small></button>
-          </div>
-          <div class="edge-player"><div class="media-art small" aria-hidden="true"><span>K&amp;C</span></div><div><small>Сейчас</small><strong>Медиапанель</strong></div><button type="button" aria-label="Воспроизведение недоступно">▶</button></div>
+      <section class="glass quick">
+        <div class="section-head"><span>БЫСТРЫЙ ЗАПУСК</span><small>ПИШИТЕ • ПЛАНИРУЙТЕ • ДЕЛЕГИРУЙТЕ</small></div>
+        <textarea id="quickInput" maxlength="2000" placeholder="Опишите, что нужно сделать...&#10;Например: проанализировать рынок,&#10;подготовить стратегию, собрать данные&#10;или запустить исследование..."></textarea>
+        <div class="quick-footer">
+          <div><button class="mini3d" id="templateButton">✦</button><button class="mini3d" id="clearQuickButton">⌫</button></div>
+          <span id="quickCount">0 / 2000</span>
+          <button class="send3d" id="quickSend">↑</button>
         </div>
-      </aside>
-    </div>
+      </section>
 
-    <div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
-    <section class="bottom-sheet" id="bottomSheet" aria-modal="true" role="dialog" aria-labelledby="sheetTitle" hidden>
-      <div class="sheet-handle"></div><div class="sheet-heading"><h2 id="sheetTitle">Информация</h2><button id="sheetClose" type="button" aria-label="Закрыть">×</button></div><div id="sheetContent"></div>
+      <section class="glass">
+        <div class="section-head"><span>АКТИВНЫЕ АГЕНТЫ</span><button class="text-btn" data-go="agents">Все агенты →</button></div>
+        <div class="agent-grid" id="homeAgents"></div>
+      </section>
+
+      <section class="glass">
+        <div class="section-head"><span>СТАТУС СИСТЕМЫ</span><small id="systemSummary">Проверяем...</small></div>
+        <div class="status-grid">
+          <button class="status-card" data-go="agents"><i class="led green"></i><span><b>Агенты</b><small id="agentStatus">4 активны</small></span></button>
+          <button class="status-card" id="infraStatus"><i class="led" id="infraLed"></i><span><b>Инфраструктура</b><small id="infraText">Проверяем</small></span></button>
+          <button class="status-card" data-go="memory"><i class="led green"></i><span><b>Память</b><small>Доступна</small></span></button>
+          <button class="status-card" data-go="settings"><i class="led blue"></i><span><b>Интеграции</b><small>Подключены</small></span></button>
+        </div>
+      </section>
     </section>
-    <script src="/app.js" defer></script>
-  </body>
+
+    <section class="page" data-page="chat">
+      <div class="page-title"><button class="back" data-go="home">‹</button><div><small>K&C GPT</small><h2>Чат</h2></div><button class="mini3d" id="newChat">＋</button></div>
+      <section class="glass chatbox"><div id="discussionOutput" class="messages"></div><textarea id="ideaInput" maxlength="1200" placeholder="Сообщение K&C..."></textarea><div class="chat-actions"><span id="statusBox">Готов к работе</span><button class="send3d" id="discussButton">↑</button></div></section>
+    </section>
+
+    <section class="page" data-page="tasks">
+      <div class="page-title"><button class="back" data-go="home">‹</button><div><small>РАБОЧИЙ ПОТОК</small><h2>Задачи</h2></div><button class="mini3d" id="addTaskButton">＋</button></div>
+      <section class="glass"><textarea id="taskInput" maxlength="600" placeholder="Новая задача..."></textarea><button class="primary3d" id="saveTask">Добавить задачу</button></section>
+      <section class="stack" id="taskList"></section>
+    </section>
+
+    <section class="page" data-page="agents">
+      <div class="page-title"><button class="back" data-go="home">‹</button><div><small>КОМАНДА</small><h2>Агенты</h2></div></div>
+      <section class="agent-list" id="agentList"></section>
+    </section>
+
+    <section class="page" data-page="projects">
+      <div class="page-title"><button class="back" data-go="home">‹</button><div><small>РАЗРАБОТКА</small><h2>Проекты</h2></div><button class="mini3d" id="addProjectButton">＋</button></div>
+      <section class="glass"><input id="projectInput" maxlength="120" placeholder="Название проекта" /><button class="primary3d" id="saveProject">Добавить проект</button></section>
+      <section class="stack" id="projectList"></section>
+    </section>
+
+    <section class="page" data-page="memory">
+      <div class="page-title"><button class="back" data-go="home">‹</button><div><small>КОНТЕКСТ</small><h2>Память</h2></div><button class="mini3d" id="refreshMemory">↻</button></div>
+      <section class="glass"><p class="muted">История диалогов и сохранённый рабочий контекст.</p><div id="memoryList" class="stack compact"></div></section>
+    </section>
+
+    <section class="page" data-page="settings">
+      <div class="page-title"><button class="back" data-go="home">‹</button><div><small>СИСТЕМА</small><h2>Настройки</h2></div></div>
+      <section class="glass settings">
+        <h3>Оформление</h3>
+        <div class="choice-row"><button data-theme="light">Светлая</button><button data-theme="dark">Тёмная</button><button data-theme="system">Как iPhone</button></div>
+        <label class="setting-row"><span><b>Автопроверка</b><small>Контроль сервера каждые 30 секунд</small></span><input id="autoCheck" type="checkbox" checked /></label>
+        <label class="setting-row"><span><b>Тактильный отклик</b><small>Отклик кнопок на iPhone</small></span><input id="haptics" type="checkbox" checked /></label>
+      </section>
+    </section>
+  </main>
+
+  <div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
+  <section class="sheet" id="sheet" hidden><div class="sheet-head"><h3 id="sheetTitle"></h3><button id="sheetClose">×</button></div><div id="sheetBody"></div></section>
+</div>
+<script src="/app.js" defer></script>
+</body>
 </html>
