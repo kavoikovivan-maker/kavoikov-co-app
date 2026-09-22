@@ -166,3 +166,73 @@ html[data-theme="light"] .launch-logo span::before{
 @media(prefers-reduced-motion:reduce){
   .launch-logo,.launch-logo span::before,.launch-logo span::after,.launch-screen::after{animation:none!important}
 }
+
+
+/* K&C premium control polish v2: sculpted, not outlined */
+.icon3d,.mini3d,.send3d,.back,.action3d,.module3d b,.agent-card,.status-card,.primary3d{
+  border:1px solid rgba(255,255,255,.46);
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.32) 0%,rgba(255,255,255,.16) 38%,rgba(182,187,191,.18) 100%),
+    linear-gradient(145deg,var(--glass2),var(--glass));
+  box-shadow:
+    0 13px 22px rgba(57,62,67,.20),
+    0 4px 7px rgba(57,62,67,.12),
+    inset 0 1.5px 1px rgba(255,255,255,.90),
+    inset 0 -4px 7px rgba(93,99,104,.12);
+}
+.action3d>b,.agent-card>b,.agent-icon{
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.36),rgba(255,255,255,.13));
+  border:1px solid rgba(255,255,255,.48);
+  box-shadow:
+    0 7px 12px rgba(60,64,68,.14),
+    inset 0 1px 1px rgba(255,255,255,.82),
+    inset 0 -3px 5px rgba(90,96,101,.10);
+}
+html[data-theme="dark"] .icon3d,
+html[data-theme="dark"] .mini3d,
+html[data-theme="dark"] .send3d,
+html[data-theme="dark"] .back,
+html[data-theme="dark"] .action3d,
+html[data-theme="dark"] .module3d b,
+html[data-theme="dark"] .agent-card,
+html[data-theme="dark"] .status-card,
+html[data-theme="dark"] .primary3d{
+  border:1px solid rgba(167,193,216,.24);
+  background:
+    radial-gradient(circle at 32% 18%,rgba(138,171,201,.14),transparent 36%),
+    linear-gradient(180deg,#1b2a39 0%,#152331 48%,#101c28 100%);
+  box-shadow:
+    0 16px 28px rgba(0,0,0,.42),
+    0 4px 10px rgba(0,0,0,.28),
+    inset 0 1.5px 1px rgba(224,239,252,.18),
+    inset 0 -5px 9px rgba(0,0,0,.34);
+}
+html[data-theme="dark"] .action3d>b,
+html[data-theme="dark"] .agent-card>b,
+html[data-theme="dark"] .agent-icon{
+  border:1px solid rgba(169,197,222,.19);
+  background:linear-gradient(180deg,#22364a 0%,#17283a 100%);
+  box-shadow:
+    0 8px 15px rgba(0,0,0,.28),
+    inset 0 1px 1px rgba(226,240,252,.15),
+    inset 0 -4px 7px rgba(0,0,0,.26);
+}
+.action3d:active,.module3d:active b,.icon3d:active,.agent-card:active,.status-card:active,.mini3d:active,.send3d:active,.primary3d:active{
+  transform:translateY(2px) scale(.985);
+  box-shadow:
+    0 5px 10px rgba(0,0,0,.16),
+    inset 0 3px 9px rgba(0,0,0,.20),
+    inset 0 1px 1px rgba(255,255,255,.22);
+}
+
+/* Launch screen v2 — clearly visible on every fresh page load */
+.launch-screen{transition:opacity .5s cubic-bezier(.4,0,.2,1),visibility .5s}
+.launch-logo span{font-size:clamp(4rem,19vw,5.8rem);letter-spacing:-.09em}
+.launch-logo::after{
+  content:"AGENCY";display:block;text-align:center;margin-top:15px;padding-left:.48em;
+  font-size:.62rem;letter-spacing:.48em;color:rgba(238,244,249,.58);
+  opacity:0;animation:kcAgencyIn .55s .55s ease-out forwards;
+}
+html[data-theme="light"] .launch-logo::after{color:rgba(34,39,44,.48)}
+@keyframes kcAgencyIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}

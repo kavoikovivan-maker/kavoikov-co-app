@@ -218,5 +218,5 @@ if(launchScreen){
   window.setTimeout(()=>{
     launchScreen.classList.add('is-hiding');
     window.setTimeout(()=>launchScreen.remove(),460);
-  },1200);
+  },1850);
 }
