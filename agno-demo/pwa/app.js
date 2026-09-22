@@ -7,6 +7,7 @@ const state = {
   latency: null,
   pendingJob: null,
   currentChat: localStorage.getItem('kc-agency-chat') || null,
+  selectedAgent: null,
   messages: [],
   agents: [
     {id:'chief',name:'Главный агент',role:'Стратегия и распределение',icon:'◆',status:'online'},
@@ -76,16 +77,31 @@ function load(key,fallback){ try{return JSON.parse(localStorage.getItem(key))??f
 
 function renderAgents(){
   const cards=state.agents.map(a=>`<button class="agent-card" data-agent="${a.id}"><b>${safe(a.icon)}</b><span><strong>${safe(a.name)}</strong><small><i class="led green"></i> Онлайн</small><em>${safe(a.role)}</em></span></button>`).join('');
-  $('homeAgents').innerHTML=cards;
+  $('homeAgents').innerHTML=state.agents.slice(0,4).map(a=>`<button class="agent-card" data-agent="${a.id}"><b>${safe(a.icon)}</b><span><strong>${safe(a.name)}</strong><small><i class="led green"></i> Онлайн</small><em>${safe(a.role)}</em></span></button>`).join('');
   $('agentList').innerHTML=state.agents.map(a=>`<section class="glass agent-wide"><div class="agent-icon">${safe(a.icon)}</div><div><h3>${safe(a.name)}</h3><p>${safe(a.role)}</p><small><i class="led green"></i> Готов к работе</small></div><button class="mini3d" data-agent-open="${a.id}">›</button></section>`).join('');
   document.querySelectorAll('[data-agent],[data-agent-open]').forEach(b=>b.onclick=()=>openAgent(b.dataset.agent||b.dataset.agentOpen));
 }
 function openAgent(id){
   const a=state.agents.find(x=>x.id===id); if(!a)return;
+  state.selectedAgent=id;
   openSheet(a.name,`<div class="sheet-card"><p>${safe(a.role)}</p><p>Статус: <b>готов к работе</b>.</p><button class="primary3d" id="agentToChat">Поставить задачу этому агенту</button></div>`);
-  $('agentToChat').onclick=()=>{closeSheet();showPage('chat');$('ideaInput').value=`${a.name}: `; $('ideaInput').focus();};
+  $('agentToChat').onclick=()=>{closeSheet();showPage('chat');$('statusBox').textContent=`Агент: ${a.name}`;$('ideaInput').focus();};
 }
 renderAgents();
+
+async function loadAgents(){
+  try{
+    const d=await json('/api/agents');
+    if(Array.isArray(d.items)&&d.items.length){
+      state.agents=d.items.map(x=>({...x,status:'online'}));
+      renderAgents();
+      $('agentStatus').textContent=`${d.count||d.items.length} доступны`;
+    }
+  }catch(e){
+    $('agentStatus').textContent='Каталог недоступен';
+  }
+}
+loadAgents();
 
 function renderTasks(){
   const tasks=load('kc-agency-tasks',[]);
@@ -152,7 +168,7 @@ async function sendChat(){
   const requestId=crypto.randomUUID(); state.pendingJob=requestId;
   let clientId=localStorage.getItem('kc-client-id'); if(!clientId){clientId=crypto.randomUUID();localStorage.setItem('kc-client-id',clientId);}
   try{
-    await json('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message,chat_id:state.currentChat,client_id:clientId,request_id:requestId})});
+    await json('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message,chat_id:state.currentChat,client_id:clientId,request_id:requestId,agent_id:state.selectedAgent})});
     while(state.pendingJob){
       const d=await json('/api/jobs/'+requestId);
       $('statusBox').textContent=d.state==='generating'?'K&C отвечает…':'В очереди…';
@@ -171,7 +187,7 @@ async function sendChat(){
 }
 $('discussButton').onclick=sendChat;
 $('ideaInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();sendChat();}});
-$('newChat').onclick=()=>{state.currentChat=null;state.messages=[];localStorage.removeItem('kc-agency-chat');renderMessages();$('statusBox').textContent='Новый чат';};
+$('newChat').onclick=()=>{state.currentChat=null;state.selectedAgent=null;state.messages=[];localStorage.removeItem('kc-agency-chat');renderMessages();$('statusBox').textContent='Новый чат';};
 renderMessages();
 
 async function loadMemory(){
@@ -192,7 +208,7 @@ async function checkServer(){
   try{
     const h=await json('/api/health'); state.server=true;state.latency=Math.max(1,Math.round(performance.now()-started));
     $('infraLed').className='led green'; $('infraText').textContent=`Стабильно · ${state.latency} мс`;
-    $('systemSummary').textContent=h.assistant==='configured'?'СТАБИЛЬНО • ГОТОВО':'СЕРВЕР ЕСТЬ • НУЖЕН КЛЮЧ';
+    $('systemSummary').textContent=h.assistant==='configured'?`СТАБИЛЬНО • ${h.agents||0} АГЕНТОВ`:`СЕРВЕР ЕСТЬ • НУЖЕН КЛЮЧ • ${h.agents||0} АГЕНТОВ`;
   }catch{
     state.server=false;$('infraLed').className='led red';$('infraText').textContent='Недоступна';$('systemSummary').textContent='НЕТ СВЯЗИ С СЕРВЕРОМ';
   }
