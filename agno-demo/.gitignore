@@ -1,9 +1,0 @@
-.venv/
-data/
-*.db
-*.db-*
-*.sqlite*
-.env*
-__pycache__/
-*.log
-*.zip
