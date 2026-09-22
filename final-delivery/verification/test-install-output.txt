@@ -1,0 +1,59 @@
+Testing /workspaces/agency-agents/scripts/install.sh
+  repo: /workspaces/agency-agents
+  18 divisions, 279 agents (engineering: 64)
+
+help + listings
+  ok   --help exits 0
+  ok   --help prints usage
+  ok   --list teams exits 0
+  ok   --list teams names every division in divisions.json
+  ok   --list agents includes ai-data-remediation-engineer
+
+dry-run
+  ok   --dry-run exits 0
+  ok   --dry-run creates no files
+
+destinations
+  ok   claude-code installs every agent to $HOME/.claude/agents
+  ok   claude-code writes nothing into the config root
+  ok   --path overrides the default destination
+  ok   --path leaves the default destination empty
+  ok   COPILOT_AGENT_DIR overrides the default destination
+  ok   --path wins over the env var
+  ok   env var destination is unused when --path is given
+  ok   CLAUDE_CONFIG_DIR install exits 0
+  ok   CLAUDE_CONFIG_DIR installs agents into $CLAUDE_CONFIG_DIR/agents
+  ok   CLAUDE_CONFIG_DIR leaves the config root itself empty
+  ok   trailing-slash CLAUDE_CONFIG_DIR install exits 0
+  ok   a trailing slash on CLAUDE_CONFIG_DIR still resolves to .../agents
+  ok   pre-suffixed CLAUDE_CONFIG_DIR install exits 0
+  ok   a CLAUDE_CONFIG_DIR already ending in /agents is used verbatim (no double-nesting)
+
+paths with spaces
+  ok   installs into a path containing spaces
+find: warning: you have specified the global option -maxdepth after the argument -name, but global options are not positional, i.e., -maxdepth affects tests specified before it as well as those specified after it.  Please specify global options before other arguments.
+  ok   a spaced path is not split into separate directories
+
+parallel workers
+  ok   two tools that write the same filenames into one --path are refused
+  ok   the refusal explains the collision
+  ok   a refused install writes nothing
+  ok   serial control: two non-colliding tools, spaced/globbed --path, exits 0
+  ok   serial control: claude-code installs exactly the one selected agent
+  ok   serial control: codex's output survives alongside claude-code's
+  ok   --parallel with a spaced/globbed --path exits 0
+  xfail --parallel installs exactly the one selected agent (spaced --path + --agents-file)
+       expected '1', got '0' — fixed by PR #755
+
+selection
+  ok   --division installs only that division
+  ok   --agent installs exactly one agent
+  ok   --agents-file skips comments and blank lines
+  ok   unknown --tool exits non-zero
+
+link + repeat runs
+  ok   --link creates symlinks, not copies
+  ok   re-running installs the same set, not duplicates
+
+Results: 36 passed, 0 failed, 1 known-broken (xfail).
+PASSED
