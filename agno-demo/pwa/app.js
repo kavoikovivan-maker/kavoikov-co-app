@@ -1,506 +1,212 @@
-const $ = id => document.getElementById(id);
-const startedAt = Date.now();
+const $ = (id) => document.getElementById(id);
 const state = {
-  mode: localStorage.getItem('kc-network-mode') || 'wifi',
-  theme: localStorage.getItem('kc-theme') || 'dark',
-  internet: navigator.onLine,
+  theme: localStorage.getItem('kc-agency-theme') || 'light',
+  autoCheck: localStorage.getItem('kc-agency-auto-check') !== '0',
+  haptics: localStorage.getItem('kc-agency-haptics') !== '0',
   server: false,
-  assistantConfigured: null,
   latency: null,
-  tx: 0,
-  rx: 0,
-  reconnects: 0,
-  logs: [],
-  dragging: false,
+  pendingJob: null,
+  currentChat: localStorage.getItem('kc-agency-chat') || null,
+  messages: [],
+  agents: [
+    {id:'chief',name:'Главный агент',role:'Стратегия и распределение',icon:'◆',status:'online'},
+    {id:'dev',name:'Программист',role:'Код и интеграции',icon:'</>',status:'online'},
+    {id:'critic',name:'Критик',role:'Анализ и проверка',icon:'◎',status:'online'},
+    {id:'qa',name:'Тестировщик',role:'Тесты и качество',icon:'△',status:'online'}
+  ]
 };
 
-const input = $('ideaInput');
-const statusBox = $('statusBox');
-const output = $('discussionOutput');
-let currentChat = localStorage.getItem('kc-chat');
-let pending = localStorage.getItem('kc-job');
-let pendingPrompt = localStorage.getItem('kc-pending-message') || '';
-let currentMessages = [];
-let polling = false;
-let clientId = localStorage.getItem('kc-client-id');
-if (!clientId) {
-  clientId = crypto.randomUUID();
-  localStorage.setItem('kc-client-id', clientId);
+function safe(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function tap(){ if(state.haptics && navigator.vibrate) navigator.vibrate(8); }
+document.addEventListener('click',e=>{ if(e.target.closest('button')) tap(); });
+
+function applyTheme(theme){
+  state.theme=theme; localStorage.setItem('kc-agency-theme',theme);
+  const resolved=theme==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):theme;
+  document.documentElement.dataset.theme=resolved;
+  document.querySelector('meta[name="theme-color"]').content=resolved==='dark'?'#0b1420':'#d7d8d8';
+  document.querySelectorAll('[data-theme]').forEach(b=>b.classList.toggle('active',b.dataset.theme===theme));
 }
+$('themeButton').onclick=()=>applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
 
-const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({
-  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-}[c]));
-
-function addLog(message) {
-  state.logs.unshift({ time: new Date(), message });
-  state.logs = state.logs.slice(0, 24);
+function greeting(){
+  const h=new Date().getHours();
+  if(h>=5&&h<12)return 'Доброе утро';
+  if(h>=12&&h<18)return 'Добрый день';
+  if(h>=18&&h<24)return 'Добрый вечер';
+  return 'Доброй ночи';
 }
-
-function formatBytes(bytes) {
-  if (bytes < 1024) return `${bytes} Б`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10240 ? 1 : 0)} КБ`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} МБ`;
+function userName(){ return (localStorage.getItem('kc-agency-name')||'').trim(); }
+function renderGreeting(){
+  const h=document.querySelector('.hero-copy h1');
+  if(h) h.textContent=`${greeting()}${userName()?', '+userName():''}.`;
 }
+setInterval(renderGreeting,60000);
 
-function updateTraffic() {
-  $('txValue').textContent = formatBytes(state.tx);
-  $('rxValue').textContent = formatBytes(state.rx);
+function openSheet(title,html){
+  $('sheetTitle').textContent=title; $('sheetBody').innerHTML=html;
+  $('sheetBackdrop').hidden=false; $('sheet').hidden=false;
 }
+function closeSheet(){ $('sheetBackdrop').hidden=true; $('sheet').hidden=true; }
+$('sheetClose').onclick=closeSheet; $('sheetBackdrop').onclick=closeSheet;
 
-function setLed(element, status) {
-  if (!element) return;
-  element.classList.remove('online', 'offline', 'checking', 'standby');
-  element.classList.add(status);
-}
-
-function applyTheme(theme) {
-  state.theme = theme;
-  localStorage.setItem('kc-theme', theme);
-  const resolved = theme === 'system'
-    ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
-    : theme;
-  document.documentElement.dataset.theme = resolved;
-  document.querySelector('meta[name="theme-color"]').content = resolved === 'light' ? '#edf0f3' : '#07090c';
-  document.querySelectorAll('[data-theme]').forEach(button => button.classList.toggle('active', button.dataset.theme === theme));
-}
-
-function showPage(page) {
-  document.querySelectorAll('[data-page]').forEach(section => section.classList.toggle('active', section.dataset.page === page));
-  document.querySelectorAll('[data-page-target]').forEach(button => button.classList.toggle('active', button.dataset.pageTarget === page));
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function renderMode() {
-  document.querySelectorAll('[data-mode]').forEach(button => button.classList.toggle('active', button.dataset.mode === state.mode));
-  const labels = { wifi: 'Интернет', vpn: 'VPN', proxy: 'VK Proxy' };
-  $('connectionLabel').textContent = labels[state.mode];
-  if (state.mode === 'wifi') {
-    $('connectionButton').textContent = 'Проверить соединение';
-  } else {
-    $('connectionButton').textContent = 'Открыть настройки';
-    $('connectionState').textContent = 'Ожидает подключения';
-    $('connectionOrb').className = 'status-orb checking';
-    $('signalBars').classList.remove('online');
-  }
-}
-
-function renderNetwork() {
-  const internetStatus = state.internet ? 'online' : 'offline';
-  const serverStatus = !state.server ? 'offline' : state.assistantConfigured ? 'online' : 'checking';
-  setLed($('internetLed'), internetStatus);
-  setLed($('serverLed'), serverStatus);
-  setLed($('edgeInternetLed'), internetStatus);
-  setLed($('edgeServerLed'), serverStatus);
-  $('internetModuleState').textContent = state.internet ? 'Работает' : 'Нет сети';
-  $('serverModuleState').textContent = !state.server ? 'Недоступен' : state.assistantConfigured ? 'Готов' : 'Нужен ключ';
-  $('edgeInternetText').textContent = state.internet ? 'работает' : 'нет сети';
-  $('edgeServerText').textContent = !state.server ? 'недоступен' : state.assistantConfigured ? 'готов' : 'нужен ключ';
-  $('serverLatency').textContent = state.latency === null ? '—' : `${state.latency} мс`;
-  $('reconnectValue').textContent = state.reconnects;
-
-  const allGood = state.internet && state.server && state.assistantConfigured;
-  $('topStatus').textContent = !state.internet
-    ? 'Нет интернета'
-    : !state.server
-      ? 'Интернет есть · сервер недоступен'
-      : state.assistantConfigured
-        ? `K&C GPT готов · ${state.latency} мс`
-        : 'Сервер доступен · нужен API-ключ';
-  if (state.mode === 'wifi') {
-    $('connectionState').textContent = allGood ? 'Подключено' : !state.internet ? 'Нет соединения' : state.server && !state.assistantConfigured ? 'Нужен API-ключ' : 'Сервер недоступен';
-    $('connectionOrb').className = `status-orb ${allGood ? 'online' : 'offline'}`;
-    $('connectionOrb').setAttribute('aria-label', allGood ? 'Соединение работает' : 'Соединение недоступно');
-    $('signalBars').classList.toggle('online', state.internet);
-  }
-}
-
-async function rawJSON(url, options = {}) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 20000);
-  const bodySize = typeof options.body === 'string' ? new Blob([options.body]).size : 0;
-  state.tx += bodySize;
-  try {
-    const response = await fetch(url, { ...options, cache: 'no-store', signal: controller.signal });
-    const text = await response.text();
-    state.rx += new Blob([text]).size;
-    updateTraffic();
-    let data;
-    try { data = JSON.parse(text); }
-    catch { throw new Error('Нужно открыть приложение в Safari и войти в GitHub.'); }
-    if (!response.ok) {
-      const error = new Error(data.error || 'Сервер недоступен.');
-      error.status = response.status;
-      error.code = data.code;
-      throw error;
-    }
-    return data;
-  } catch (error) {
-    if (error instanceof TypeError || error.name === 'AbortError') {
-      throw new Error('Связь с сервером прервалась. Запрос повторно не отправлялся.');
-    }
-    throw error;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function checkConnection(manual = false) {
-  state.internet = navigator.onLine;
-  if (manual) state.reconnects += 1;
-  $('connectionButton').disabled = true;
-  if (state.mode === 'wifi') {
-    $('connectionState').textContent = 'Проверяем…';
-    $('connectionOrb').className = 'status-orb checking';
-  }
-  const begin = performance.now();
-  try {
-    const health = await rawJSON('/api/health');
-    state.latency = Math.max(1, Math.round(performance.now() - begin));
-    state.server = true;
-    state.assistantConfigured = health.assistant === 'configured';
-    addLog(`Сервер ответил за ${state.latency} мс`);
-  } catch (error) {
-    state.latency = null;
-    state.server = false;
-    state.assistantConfigured = null;
-    addLog(error.message);
-  } finally {
-    state.internet = navigator.onLine;
-    $('connectionButton').disabled = false;
-    renderNetwork();
-  }
-}
-
-function openSheet(title, html) {
-  $('sheetTitle').textContent = title;
-  $('sheetContent').innerHTML = html;
-  $('sheetBackdrop').hidden = false;
-  $('bottomSheet').hidden = false;
-}
-
-function closeSheet() {
-  $('sheetBackdrop').hidden = true;
-  $('bottomSheet').hidden = true;
-}
-
-function openLogs() {
-  const items = state.logs.length ? state.logs.map(item => `
-    <div class="log-entry"><time>${item.time.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</time><span>${escapeHTML(item.message)}</span></div>
-  `).join('') : '<div class="sheet-result"><p>Записей пока нет.</p></div>';
-  openSheet('Журнал соединения', `<div class="log-list">${items}</div>`);
-}
-
-async function runSpeedCheck() {
-  openSheet('Проверка скорости', '<div class="sheet-result"><strong>…</strong><p>Измеряем отклик вашего сервера</p></div>');
-  const samples = [];
-  for (let i = 0; i < 3; i += 1) {
-    const begin = performance.now();
-    try { await rawJSON(`/api/health?t=${Date.now()}-${i}`); samples.push(performance.now() - begin); }
-    catch { break; }
-  }
-  const average = samples.length ? Math.round(samples.reduce((sum, value) => sum + value, 0) / samples.length) : null;
-  $('sheetContent').innerHTML = average === null
-    ? '<div class="sheet-result"><strong>Нет связи</strong><p>Сервер не ответил. Проверьте подключение.</p></div>'
-    : `<div class="sheet-result"><strong>${average} мс</strong><p>Средний отклик сервера по трём запросам. Скорость канала в Мбит/с требует отдельного тестового сервера.</p></div>`;
-  addLog(average === null ? 'Проверка отклика не выполнена' : `Средний отклик: ${average} мс`);
-}
-
-function openMedia() {
-  openSheet('Медиапанель', '<div class="sheet-result"><div class="media-art"><span>K&amp;C</span></div><strong>Готова</strong><p>Здесь появятся обложка, название, полоса времени и управление, когда будет подключён источник музыки или видео.</p></div>');
-}
-
-function renderUsage(usage) {
-  const isPro = usage.plan === 'pro';
-  $('usagePlan').textContent = isPro ? 'План Pro' : 'Бесплатный план';
-  $('usageLabel').textContent = `${usage.remaining} из ${usage.limit} сообщений осталось сегодня`;
-  $('usageBar').style.width = `${Math.min(100, Math.round((usage.used / Math.max(1, usage.limit)) * 100))}%`;
-  $('upgradeButton').textContent = isPro ? 'Pro ✓' : 'Pro';
-}
-
-async function refreshUsage() {
-  try {
-    const usage = await rawJSON(`/api/usage?client_id=${encodeURIComponent(clientId)}`);
-    renderUsage(usage);
-  } catch {
-    $('usageLabel').textContent = 'Не удалось проверить лимит';
-  }
-}
-
-function openUpgrade() {
-  openSheet('Тарифы K&C GPT', `
-    <div class="sheet-result">
-      <strong>Free → Pro</strong>
-      <p><b>Free</b> — 10 сообщений в день и быстрые ответы для обычных задач.</p>
-      <p><b>Pro</b> — до 200 сообщений в день, более мощная модель и длинные диалоги.</p>
-      <p>Сейчас идёт тестирование. Оплата пока не списывается, а условия могут быть скорректированы перед запуском.</p>
-    </div>
-  `);
-}
-
-function busy(on) {
-  $('discussButton').disabled = on;
-  $('newDiscussionButton').disabled = on;
-  $('starterOne').disabled = on;
-  $('starterTwo').disabled = on;
-}
-
-function renderConversation(waiting = false, partial = '') {
-  const messages = currentMessages.length
-    ? currentMessages
-    : [{ role: 'assistant', content: 'Здравствуйте! Я K&C GPT. Помогу с программированием, рабочими задачами и разработкой напитков. С чего начнём?' }];
-  output.innerHTML = messages.map(message => `
-    <article class="message-row ${message.role === 'user' ? 'user' : 'assistant'}">
-      ${message.role === 'assistant' ? '<div class="message-avatar">K&amp;C</div>' : ''}
-      <div class="message-bubble">
-        <p>${escapeHTML(message.content)}</p>
-        ${message.time_sec ? `<span class="message-meta">${escapeHTML(message.time_sec)} сек</span>` : ''}
-      </div>
-    </article>
-  `).join('') + (waiting ? (partial ? `
-    <article class="message-row assistant"><div class="message-avatar">K&amp;C</div><div class="message-bubble streaming"><p>${escapeHTML(partial)}</p><span class="stream-cursor" aria-hidden="true"></span></div></article>
-  ` : `
-    <article class="message-row assistant"><div class="message-avatar">K&amp;C</div><div class="message-bubble"><div class="typing-dots" aria-label="Помощник отвечает"><i></i><i></i><i></i></div></div></article>
-  `) : '');
-  requestAnimationFrame(() => output.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' }));
-}
-
-async function history() {
-  const data = await rawJSON('/api/chats');
-  const selected = (data.items || []).find(item => item.id === currentChat);
-  if (selected && !currentMessages.length) {
-    currentMessages = selected.messages.map(message => ({ role: message.role, content: message.content }));
-  }
-  if (pending && pendingPrompt && currentMessages.at(-1)?.content !== pendingPrompt) {
-    currentMessages.push({ role: 'user', content: pendingPrompt });
-  }
-  renderConversation(Boolean(pending));
-  $('historyList').innerHTML = (data.items || []).map(item => `
-    <div class="history-item">
-      <h3>${escapeHTML(item.title)}</h3>
-      <time>${escapeHTML(new Date(item.updated_at).toLocaleString('ru-RU'))}</time>
-      <p>${escapeHTML(item.messages.at(-1)?.content || '')}</p>
-      <button class="small-button" data-chat="${escapeHTML(item.id)}">Открыть</button>
-    </div>
-  `).join('') || '<p>Пока нет сохранённых чатов.</p>';
-  $('historyList').querySelectorAll('[data-chat]').forEach(button => {
-    button.onclick = () => {
-      if (pending) return;
-      const chat = data.items.find(item => item.id === button.dataset.chat);
-      if (!chat) return;
-      currentChat = chat.id;
-      currentMessages = chat.messages.map(message => ({ role: message.role, content: message.content }));
-      localStorage.setItem('kc-chat', currentChat);
-      input.value = '';
-      statusBox.textContent = 'Чат открыт';
-      renderConversation();
-      input.focus();
-      window.scrollTo(0, 0);
-    };
-  });
-}
-
-async function poll() {
-  if (polling || !pending) return;
-  polling = true;
-  busy(true);
-  try {
-    while (pending) {
-      const data = await rawJSON(`/api/jobs/${pending}`);
-      renderConversation(!['done', 'error'].includes(data.state), data.assistant?.content || '');
-      statusBox.textContent = ({ queued: 'В очереди…', generating: 'K&C GPT отвечает…', done: 'Готово', error: data.error })[data.state] || data.state;
-      if (['done', 'error'].includes(data.state)) {
-        if (data.state === 'done' && data.assistant) {
-          const alreadyShown = currentMessages.at(-1)?.role === 'assistant' && currentMessages.at(-1)?.content === data.assistant.content;
-          if (!alreadyShown) currentMessages.push({ role: 'assistant', content: data.assistant.content, time_sec: data.assistant.time_sec });
-          if (data.chat_id) { currentChat = data.chat_id; localStorage.setItem('kc-chat', currentChat); }
-        }
-        pending = null;
-        localStorage.removeItem('kc-job');
-        localStorage.removeItem('kc-pending-message');
-        pendingPrompt = '';
-        busy(false);
-        renderConversation();
-        await refreshUsage();
-        await history();
-        break;
-      }
-      await new Promise(resolve => setTimeout(resolve, 450));
-    }
-  } catch (error) {
-    statusBox.textContent = `${error.message} Нажмите «Проверить ответ».`;
-  } finally {
-    polling = false;
-    $('checkButton').hidden = !pending;
-  }
-}
-
-function setPanelState(next) {
-  $('edgePanel').dataset.state = next;
-  $('edgePanel').style.transform = '';
-}
-
-function initEdgePanel() {
-  const panel = $('edgePanel');
-  const grip = $('edgeGrip');
-  let startX = 0;
-  let startTranslate = 0;
-  let moved = false;
-
-  grip.addEventListener('pointerdown', event => {
-    state.dragging = true;
-    moved = false;
-    startX = event.clientX;
-    const width = panel.getBoundingClientRect().width;
-    startTranslate = panel.dataset.state === 'open' ? 0 : panel.dataset.state === 'hidden' ? width - 5 : width - 54;
-    panel.classList.add('dragging');
-    grip.setPointerCapture(event.pointerId);
-  });
-
-  grip.addEventListener('pointermove', event => {
-    if (!state.dragging) return;
-    const width = panel.getBoundingClientRect().width;
-    const delta = event.clientX - startX;
-    if (Math.abs(delta) > 4) moved = true;
-    const translate = Math.max(0, Math.min(width - 5, startTranslate + delta));
-    panel.style.transform = `translateX(${translate}px)`;
-  });
-
-  const finish = event => {
-    if (!state.dragging) return;
-    state.dragging = false;
-    panel.classList.remove('dragging');
-    if (grip.hasPointerCapture(event.pointerId)) grip.releasePointerCapture(event.pointerId);
-    const width = panel.getBoundingClientRect().width;
-    const matrix = new DOMMatrixReadOnly(getComputedStyle(panel).transform);
-    const translate = matrix.m41;
-    if (!moved) setPanelState(panel.dataset.state === 'open' ? ($('railToggle').checked ? 'rail' : 'hidden') : 'open');
-    else if (translate < width * .42) setPanelState('open');
-    else setPanelState($('railToggle').checked ? 'rail' : 'hidden');
+function requestProfile(force=false){
+  if(userName()&&!force) return;
+  openSheet('Профиль K&C',`<div class="profile-form"><p>Как к вам обращаться?</p><input id="profileNameInput" maxlength="40" placeholder="Имя" value="${safe(userName())}"><button class="primary3d" id="saveProfileName">Сохранить</button></div>`);
+  $('saveProfileName').onclick=()=>{
+    const name=$('profileNameInput').value.trim();
+    if(!name){$('profileNameInput').focus();return;}
+    localStorage.setItem('kc-agency-name',name); renderGreeting(); closeSheet();
   };
-  grip.addEventListener('pointerup', finish);
-  grip.addEventListener('pointercancel', finish);
-  grip.addEventListener('dblclick', () => setPanelState(panel.dataset.state === 'hidden' ? 'rail' : 'hidden'));
 }
+$('profileButton').onclick=()=>requestProfile(true);
 
-document.querySelectorAll('[data-page-target]').forEach(button => button.addEventListener('click', () => showPage(button.dataset.pageTarget)));
-document.querySelectorAll('[data-open-page]').forEach(button => button.addEventListener('click', () => { showPage(button.dataset.openPage); setPanelState($('railToggle').checked ? 'rail' : 'hidden'); }));
-document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {
-  state.mode = button.dataset.mode;
-  localStorage.setItem('kc-network-mode', state.mode);
-  renderMode();
-  renderNetwork();
-}));
-document.querySelectorAll('[data-theme]').forEach(button => button.addEventListener('click', () => applyTheme(button.dataset.theme)));
+function showPage(page){
+  document.querySelectorAll('[data-page]').forEach(p=>p.classList.toggle('active',p.dataset.page===page));
+  window.scrollTo({top:0,behavior:'smooth'});
+  if(page==='memory') loadMemory();
+}
+document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>showPage(b.dataset.go)));
 
-$('themeButton').onclick = () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
-$('connectionButton').onclick = () => state.mode === 'wifi' ? checkConnection(true) : showPage('settings');
-$('logsButton').onclick = openLogs;
-$('speedButton').onclick = runSpeedCheck;
-$('mediaButton').onclick = openMedia;
-$('edgeMedia').onclick = openMedia;
-$('edgeReconnect').onclick = () => checkConnection(true);
-$('upgradeButton').onclick = openUpgrade;
-$('sheetClose').onclick = closeSheet;
-$('sheetBackdrop').onclick = closeSheet;
-$('edgeClose').onclick = () => setPanelState($('railToggle').checked ? 'rail' : 'hidden');
-$('railToggle').onchange = event => {
-  localStorage.setItem('kc-show-rail', event.target.checked ? '1' : '0');
-  if ($('edgePanel').dataset.state !== 'open') setPanelState(event.target.checked ? 'rail' : 'hidden');
+function store(key,value){ localStorage.setItem(key,JSON.stringify(value)); }
+function load(key,fallback){ try{return JSON.parse(localStorage.getItem(key))??fallback;}catch{return fallback;} }
+
+function renderAgents(){
+  const cards=state.agents.map(a=>`<button class="agent-card" data-agent="${a.id}"><b>${safe(a.icon)}</b><span><strong>${safe(a.name)}</strong><small><i class="led green"></i> Онлайн</small><em>${safe(a.role)}</em></span></button>`).join('');
+  $('homeAgents').innerHTML=cards;
+  $('agentList').innerHTML=state.agents.map(a=>`<section class="glass agent-wide"><div class="agent-icon">${safe(a.icon)}</div><div><h3>${safe(a.name)}</h3><p>${safe(a.role)}</p><small><i class="led green"></i> Готов к работе</small></div><button class="mini3d" data-agent-open="${a.id}">›</button></section>`).join('');
+  document.querySelectorAll('[data-agent],[data-agent-open]').forEach(b=>b.onclick=()=>openAgent(b.dataset.agent||b.dataset.agentOpen));
+}
+function openAgent(id){
+  const a=state.agents.find(x=>x.id===id); if(!a)return;
+  openSheet(a.name,`<div class="sheet-card"><p>${safe(a.role)}</p><p>Статус: <b>готов к работе</b>.</p><button class="primary3d" id="agentToChat">Поставить задачу этому агенту</button></div>`);
+  $('agentToChat').onclick=()=>{closeSheet();showPage('chat');$('ideaInput').value=`${a.name}: `; $('ideaInput').focus();};
+}
+renderAgents();
+
+function renderTasks(){
+  const tasks=load('kc-agency-tasks',[]);
+  $('taskList').innerHTML=tasks.length?tasks.map((t,i)=>`<section class="glass list-item"><button class="check ${t.done?'done':''}" data-task-toggle="${i}">${t.done?'✓':''}</button><div><h3>${safe(t.text)}</h3><small>${safe(t.created)}</small></div><button class="mini3d" data-task-del="${i}">×</button></section>`).join(''):'<section class="glass empty">Задач пока нет.</section>';
+  document.querySelectorAll('[data-task-toggle]').forEach(b=>b.onclick=()=>{const a=load('kc-agency-tasks',[]);a[+b.dataset.taskToggle].done=!a[+b.dataset.taskToggle].done;store('kc-agency-tasks',a);renderTasks();});
+  document.querySelectorAll('[data-task-del]').forEach(b=>b.onclick=()=>{const a=load('kc-agency-tasks',[]);a.splice(+b.dataset.taskDel,1);store('kc-agency-tasks',a);renderTasks();});
+  $('notifyBadge').textContent=tasks.filter(t=>!t.done).length;
+}
+$('saveTask').onclick=()=>{
+  const v=$('taskInput').value.trim();if(!v)return;
+  const a=load('kc-agency-tasks',[]);a.unshift({text:v,done:false,created:new Date().toLocaleString('ru-RU')});store('kc-agency-tasks',a);$('taskInput').value='';renderTasks();
 };
-$('autoCheckToggle').onchange = event => localStorage.setItem('kc-auto-check', event.target.checked ? '1' : '0');
+$('addTaskButton').onclick=()=>$('taskInput').focus();
+renderTasks();
 
-document.querySelectorAll('[data-edge-action]').forEach(button => button.addEventListener('click', () => {
-  const action = button.dataset.edgeAction;
-  if (action === 'connection') showPage('home');
-  if (action === 'server') showPage('chat');
-  if (action === 'vpn' || action === 'proxy') {
-    state.mode = action;
-    localStorage.setItem('kc-network-mode', state.mode);
-    renderMode();
-    showPage('home');
-  }
-  setPanelState($('railToggle').checked ? 'rail' : 'hidden');
-}));
+function renderProjects(){
+  const projects=load('kc-agency-projects',[]);
+  $('projectList').innerHTML=projects.length?projects.map((p,i)=>`<section class="glass list-item"><div class="project-dot"></div><div><h3>${safe(p.name)}</h3><small>Создан: ${safe(p.created)}</small></div><button class="mini3d" data-project-del="${i}">×</button></section>`).join(''):'<section class="glass empty">Проектов пока нет.</section>';
+  document.querySelectorAll('[data-project-del]').forEach(b=>b.onclick=()=>{const a=load('kc-agency-projects',[]);a.splice(+b.dataset.projectDel,1);store('kc-agency-projects',a);renderProjects();});
+}
+$('saveProject').onclick=()=>{
+  const v=$('projectInput').value.trim();if(!v)return;
+  const a=load('kc-agency-projects',[]);a.unshift({name:v,created:new Date().toLocaleDateString('ru-RU')});store('kc-agency-projects',a);$('projectInput').value='';renderProjects();
+};
+$('addProjectButton').onclick=()=>$('projectInput').focus();
+renderProjects();
 
-$('discussButton').onclick = async () => {
-  if (pending || polling) return;
-  const message = input.value.trim();
-  if (!message) { input.focus(); return; }
-  pending = crypto.randomUUID();
-  pendingPrompt = message;
-  localStorage.setItem('kc-job', pending);
-  localStorage.setItem('kc-pending-message', pendingPrompt);
-  currentMessages.push({ role: 'user', content: message });
-  busy(true);
-  renderConversation(true);
-  statusBox.textContent = 'Отправляем сообщение…';
-  try {
-    await rawJSON('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, chat_id: currentChat, client_id: clientId, request_id: pending }) });
-    input.value = '';
-    await poll();
-  } catch (error) {
-    statusBox.textContent = error.message;
-    if (error.code === 'daily_limit') openUpgrade();
-    if (error.status) {
-      pending = null;
-      pendingPrompt = '';
-      localStorage.removeItem('kc-job');
-      localStorage.removeItem('kc-pending-message');
-      busy(false);
-      renderConversation();
+const quick=$('quickInput');
+function updateQuick(){ $('quickCount').textContent=`${quick.value.length} / 2000`; }
+quick.addEventListener('input',updateQuick); updateQuick();
+$('clearQuickButton').onclick=()=>{quick.value='';updateQuick();quick.focus();};
+$('templateButton').onclick=()=>{
+  openSheet('Шаблоны задач',`<div class="template-list">
+    <button data-template="Проанализируй проект, найди слабые места и предложи конкретный план улучшения.">Анализ проекта</button>
+    <button data-template="Разработай технический план реализации функции, затем проверь риски и тесты.">Разработка</button>
+    <button data-template="Собери факты по теме, структурируй выводы и подготовь краткий отчёт.">Исследование</button>
+  </div>`);
+  $('sheetBody').querySelectorAll('[data-template]').forEach(b=>b.onclick=()=>{quick.value=b.dataset.template;updateQuick();closeSheet();quick.focus();});
+};
+$('quickSend').onclick=()=>{
+  const text=quick.value.trim(); if(!text){quick.focus();return;}
+  showPage('chat'); $('ideaInput').value=text; quick.value=''; updateQuick(); sendChat();
+};
+
+function renderMessages(waiting=false,partial=''){
+  const base=state.messages.length?state.messages:[{role:'assistant',content:'Здравствуйте! Я K&C. Поставьте задачу, и я помогу организовать работу.'}];
+  $('discussionOutput').innerHTML=base.map(m=>`<div class="message ${m.role}"><div>${m.role==='assistant'?'<b>K&C</b>':''}<p>${safe(m.content)}</p></div></div>`).join('')+(waiting?`<div class="message assistant"><div><b>K&C</b><p>${safe(partial||'Думаю…')}</p></div></div>`:'');
+  requestAnimationFrame(()=>$('discussionOutput').lastElementChild?.scrollIntoView({behavior:'smooth'}));
+}
+async function json(url,options={}){
+  const c=new AbortController(); const timer=setTimeout(()=>c.abort(),30000);
+  try{
+    const r=await fetch(url,{...options,cache:'no-store',signal:c.signal});
+    const t=await r.text(); let d={}; try{d=JSON.parse(t)}catch{}
+    if(!r.ok) throw new Error(d.error||'Ошибка сервера');
+    return d;
+  }finally{clearTimeout(timer);}
+}
+async function sendChat(){
+  if(state.pendingJob)return;
+  const box=$('ideaInput'); const message=box.value.trim(); if(!message){box.focus();return;}
+  state.messages.push({role:'user',content:message}); box.value=''; renderMessages(true);
+  $('statusBox').textContent='Отправляем…'; $('discussButton').disabled=true;
+  const requestId=crypto.randomUUID(); state.pendingJob=requestId;
+  let clientId=localStorage.getItem('kc-client-id'); if(!clientId){clientId=crypto.randomUUID();localStorage.setItem('kc-client-id',clientId);}
+  try{
+    await json('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message,chat_id:state.currentChat,client_id:clientId,request_id:requestId})});
+    while(state.pendingJob){
+      const d=await json('/api/jobs/'+requestId);
+      $('statusBox').textContent=d.state==='generating'?'K&C отвечает…':'В очереди…';
+      renderMessages(true,d.assistant?.content||'');
+      if(d.state==='done'){
+        if(d.assistant?.content)state.messages.push({role:'assistant',content:d.assistant.content});
+        if(d.chat_id){state.currentChat=d.chat_id;localStorage.setItem('kc-agency-chat',d.chat_id);}
+        state.pendingJob=null; $('statusBox').textContent='Готово'; renderMessages(); break;
+      }
+      if(d.state==='error')throw new Error(d.error||'Ошибка генерации');
+      await new Promise(r=>setTimeout(r,500));
     }
-    $('checkButton').hidden = !pending;
+  }catch(e){
+    state.pendingJob=null; $('statusBox').textContent=e.message; renderMessages();
+  }finally{$('discussButton').disabled=false;}
+}
+$('discussButton').onclick=sendChat;
+$('ideaInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();sendChat();}});
+$('newChat').onclick=()=>{state.currentChat=null;state.messages=[];localStorage.removeItem('kc-agency-chat');renderMessages();$('statusBox').textContent='Новый чат';};
+renderMessages();
+
+async function loadMemory(){
+  try{
+    const d=await json('/api/chats');
+    $('memoryList').innerHTML=(d.items||[]).slice(0,20).map(x=>`<button class="memory-item" data-memory="${safe(x.id)}"><strong>${safe(x.title)}</strong><small>${new Date(x.updated_at).toLocaleString('ru-RU')}</small></button>`).join('')||'<p class="muted">Сохранённых чатов пока нет.</p>';
+    document.querySelectorAll('[data-memory]').forEach(b=>b.onclick=()=>{
+      const chat=(d.items||[]).find(x=>x.id===b.dataset.memory); if(!chat)return;
+      state.currentChat=chat.id; localStorage.setItem('kc-agency-chat',chat.id);
+      state.messages=chat.messages.map(m=>({role:m.role,content:m.content})); showPage('chat');renderMessages();
+    });
+  }catch(e){$('memoryList').innerHTML=`<p class="muted">${safe(e.message)}</p>`;}
+}
+$('refreshMemory').onclick=loadMemory;
+
+async function checkServer(){
+  const started=performance.now();
+  try{
+    const h=await json('/api/health'); state.server=true;state.latency=Math.max(1,Math.round(performance.now()-started));
+    $('infraLed').className='led green'; $('infraText').textContent=`Стабильно · ${state.latency} мс`;
+    $('systemSummary').textContent=h.assistant==='configured'?'СТАБИЛЬНО • ГОТОВО':'СЕРВЕР ЕСТЬ • НУЖЕН КЛЮЧ';
+  }catch{
+    state.server=false;$('infraLed').className='led red';$('infraText').textContent='Недоступна';$('systemSummary').textContent='НЕТ СВЯЗИ С СЕРВЕРОМ';
   }
+}
+$('infraStatus').onclick=checkServer;
+$('notifyButton').onclick=()=>{
+  const tasks=load('kc-agency-tasks',[]).filter(t=>!t.done);
+  openSheet('События',tasks.length?'<div class="stack compact">'+tasks.slice(0,8).map(t=>`<div class="sheet-card">${safe(t.text)}</div>`).join('')+'</div>':'<div class="sheet-card">Новых событий нет.</div>');
 };
 
-$('checkButton').onclick = async () => {
-  try { await rawJSON(`/api/jobs/${pending}`); await poll(); }
-  catch (error) {
-    if (error.status === 404) {
-      pending = null;
-      localStorage.removeItem('kc-job');
-      localStorage.removeItem('kc-pending-message');
-      busy(false);
-      $('checkButton').hidden = true;
-      statusBox.textContent = 'Сервер не принял сообщение. Его можно отправить ещё раз.';
-    } else statusBox.textContent = error.message;
-  }
-};
+$('autoCheck').checked=state.autoCheck;
+$('haptics').checked=state.haptics;
+$('autoCheck').onchange=e=>{state.autoCheck=e.target.checked;localStorage.setItem('kc-agency-auto-check',e.target.checked?'1':'0');};
+$('haptics').onchange=e=>{state.haptics=e.target.checked;localStorage.setItem('kc-agency-haptics',e.target.checked?'1':'0');};
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if(state.theme==='system')applyTheme('system');});
 
-$('newDiscussionButton').onclick = () => { if (!pending) { currentChat = null; currentMessages = []; localStorage.removeItem('kc-chat'); input.value = ''; statusBox.textContent = 'Новый чат'; renderConversation(); } };
-$('starterOne').onclick = () => { if (!pending) { input.value = 'Помоги мне с программированием: '; input.focus(); } };
-$('starterTwo').onclick = () => { if (!pending) { input.value = 'Помоги разработать новый вкус напитка: '; input.focus(); } };
-input.addEventListener('keydown', event => {
-  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
-    event.preventDefault();
-    $('discussButton').click();
-  }
-});
+applyTheme(state.theme); renderGreeting(); checkServer(); requestProfile();
+setInterval(()=>{if(state.autoCheck)checkServer();},30000);
 
-window.addEventListener('online', () => { state.internet = true; addLog('Интернет появился'); checkConnection(); if (pending) poll(); });
-window.addEventListener('offline', () => { state.internet = false; state.server = false; state.assistantConfigured = null; state.latency = null; addLog('Интернет отключён'); renderNetwork(); });
-matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (state.theme === 'system') applyTheme('system'); });
-
-setInterval(() => {
-  const seconds = Math.floor((Date.now() - startedAt) / 1000);
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const rest = seconds % 60;
-  $('uptimeValue').textContent = hours ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}` : `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
-}, 1000);
-
-applyTheme(state.theme);
-$('railToggle').checked = localStorage.getItem('kc-show-rail') !== '0';
-$('autoCheckToggle').checked = localStorage.getItem('kc-auto-check') !== '0';
-setPanelState($('railToggle').checked ? 'rail' : 'hidden');
-renderMode();
-renderNetwork();
-initEdgePanel();
-busy(Boolean(pending));
-checkConnection();
-renderConversation(Boolean(pending));
-history().catch(error => { statusBox.textContent = error.message; }).finally(() => { if (pending) poll(); });
-refreshUsage();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(registration => registration.update()).catch(() => {});
-setInterval(() => { if ($('autoCheckToggle').checked && !pending) checkConnection(); }, 30000);
+if('serviceWorker'in navigator){navigator.serviceWorker.register('/sw.js',{updateViaCache:'none'}).then(r=>r.update()).catch(()=>{});}
