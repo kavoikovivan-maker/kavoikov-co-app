@@ -258,23 +258,7 @@ body{min-height:100svh}
 }
 
 
-/* Solid status-bar background: remove iOS blur/seam */
-body::before{
-  content:"";
-  position:fixed;
-  z-index:0;
-  top:0;left:0;right:0;
-  height:calc(env(safe-area-inset-top) + 2px);
-  background:var(--bg);
-  pointer-events:none;
-}
-.app{position:relative;z-index:1}
-@media (display-mode: standalone){
-  html[data-theme="dark"] body,
-  html[data-theme="dark"] body::before{background:#0b1420}
-  html[data-theme="light"] body,
-  html[data-theme="light"] body::before{background:#d7d8d8}
-}
+
 
 
 /* K&C product-family branding: product first, brand second */
@@ -374,3 +358,36 @@ html[data-theme="light"] .agency-launch small{color:rgba(37,41,46,.48)}
 html[data-theme="light"] .agency-orbit i{border-color:rgba(37,41,46,.72)}
 html[data-theme="light"] .agency-orbit i:last-child{border-color:rgba(37,41,46,.42)}
 @media(max-width:390px){.agency-brand b{font-size:1.25rem}.agency-mini-orbit{width:34px;flex-basis:34px}.agency-mini-orbit i{width:22px;height:22px}}
+
+
+/* iPhone status-bar glass: blur ONLY behind clock / Wi-Fi / battery */
+body::before{
+  content:"";
+  position:fixed;
+  z-index:20;
+  top:0;left:0;right:0;
+  height:env(safe-area-inset-top);
+  pointer-events:none;
+  background:rgba(215,216,216,.42);
+  -webkit-backdrop-filter:blur(14px) saturate(115%);
+  backdrop-filter:blur(14px) saturate(115%);
+  border:0;
+}
+html[data-theme="dark"] body::before{
+  background:rgba(11,20,32,.46);
+}
+/* very short fade so the glass ends before the app controls begin */
+body::after{
+  content:"";
+  position:fixed;
+  z-index:19;
+  top:calc(env(safe-area-inset-top) - 1px);
+  left:0;right:0;
+  height:7px;
+  pointer-events:none;
+  background:linear-gradient(180deg,rgba(215,216,216,.22),rgba(215,216,216,0));
+}
+html[data-theme="dark"] body::after{
+  background:linear-gradient(180deg,rgba(11,20,32,.24),rgba(11,20,32,0));
+}
+.app{position:relative;z-index:1}
