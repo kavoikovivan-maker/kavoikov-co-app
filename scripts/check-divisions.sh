@@ -30,7 +30,7 @@ JSON="divisions.json"
 # runbooks (no agent frontmatter), not agents. agno-demo/ is the product demo,
 # and final-delivery/ contains delivery documentation. None are divisions —
 # they must never be scanned as source-agent categories.
-NON_DIVISION_DIRS=(agno-demo examples final-delivery scripts integrations strategy)
+NON_DIVISION_DIRS=(agno-demo examples final-delivery scripts integrations strategy kc-telegram-agent)
 
 errors=0
 fail() { echo "ERROR $*"; errors=$((errors + 1)); }
