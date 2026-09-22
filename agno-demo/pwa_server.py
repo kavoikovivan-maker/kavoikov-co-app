@@ -20,6 +20,8 @@ PRO_MODEL = os.environ.get("GROQ_PRO_MODEL", "openai/gpt-oss-120b")
 FREE_DAILY_MESSAGES = int(os.environ.get("FREE_DAILY_MESSAGES", "10"))
 PRO_DAILY_MESSAGES = int(os.environ.get("PRO_DAILY_MESSAGES", "200"))
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+REPO_ROOT = ROOT.parent.parent
+
 SYSTEM_PROMPT = (
     "Ты — личный ИИ-помощник внутри приложения Kavoikoff&CO. "
     "Отвечай естественно и по делу, по умолчанию на русском языке. "
@@ -28,6 +30,58 @@ SYSTEM_PROMPT = (
     "Ты один помощник и ведёшь обычный прямой диалог с пользователем. "
     "Не заявляй об абсолютной анонимности или возможностях, которых у приложения нет."
 )
+
+def _frontmatter(text: str) -> dict:
+    if not text.startswith("---"):
+        return {}
+    end = text.find("\n---", 3)
+    if end == -1:
+        return {}
+    data = {}
+    for line in text[3:end].splitlines():
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        data[key.strip()] = value.strip().strip('"').strip("'")
+    return data
+
+
+def load_agent_library() -> list[dict]:
+    agents = []
+    blocked = {".git", ".github", "agno-demo", "examples", "final-delivery", "scripts", "integrations", "kc-telegram-agent"}
+    for path in REPO_ROOT.rglob("*.md"):
+        rel = path.relative_to(REPO_ROOT)
+        if rel.parts[0] in blocked:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        meta = _frontmatter(text)
+        name = meta.get("name")
+        description = meta.get("description")
+        if not name or not description:
+            continue
+        agents.append({
+            "id": str(rel.with_suffix("")).replace("\\", "/"),
+            "name": name,
+            "role": description,
+            "icon": meta.get("emoji") or "●",
+            "category": rel.parts[0],
+            "prompt": text[:24000],
+        })
+    agents.sort(key=lambda a: (a["category"], a["name"].lower()))
+    return agents
+
+
+def public_agents() -> list[dict]:
+    return [{k: v for k, v in agent.items() if k != "prompt"} for agent in load_agent_library()]
+
+
+def get_agent(agent_id: str | None) -> dict | None:
+    if not agent_id:
+        return None
+    return next((a for a in load_agent_library() if a["id"] == agent_id), None)
 
 
 def init_db() -> None:
@@ -136,7 +190,7 @@ def get_chat_messages(chat_id: str | None, limit: int = 24) -> list[dict]:
     return [{"role": role, "content": content} for role, content in rows]
 
 
-def run_assistant(message: str, chat_id: str | None = None, plan: str = "free", progress=lambda content: None) -> dict:
+def run_assistant(message: str, chat_id: str | None = None, plan: str = "free", progress=lambda content: None, agent_id: str | None = None) -> dict:
     api_key = os.environ.get("GROQ_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("GROQ_API_KEY не настроен на сервере")
@@ -144,7 +198,11 @@ def run_assistant(message: str, chat_id: str | None = None, plan: str = "free", 
     from openai import OpenAI
 
     client = OpenAI(api_key=api_key, base_url=GROQ_BASE_URL, timeout=90.0)
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    agent = get_agent(agent_id)
+    system_prompt = SYSTEM_PROMPT
+    if agent:
+        system_prompt += "\n\nСейчас ты работаешь в роли специализированного агента:\n" + agent["prompt"]
+    messages = [{"role": "system", "content": system_prompt}]
     messages.extend(get_chat_messages(chat_id))
     messages.append({"role": "user", "content": message})
     started = time.perf_counter()
@@ -293,14 +351,14 @@ def update_job(job_id: str, state: str, data: dict) -> None:
         )
 
 
-def worker(job_id: str, message: str, chat_id: str | None, id_hash: str, plan: str) -> None:
+def worker(job_id: str, message: str, chat_id: str | None, id_hash: str, plan: str, agent_id: str | None = None) -> None:
     base = {"user_message": message, "plan": plan}
     try:
         update_job(job_id, "generating", base)
         def report_partial(content: str) -> None:
             update_job(job_id, "generating", {**base, "assistant": {"content": content}})
 
-        answer = run_assistant(message, chat_id, plan, report_partial)
+        answer = run_assistant(message, chat_id, plan, report_partial, agent_id)
         saved_chat_id = save_exchange(message, answer, chat_id)
         update_job(job_id, "done", {**base, "assistant": answer, "chat_id": saved_chat_id})
     except Exception as exc:
@@ -312,8 +370,9 @@ def worker(job_id: str, message: str, chat_id: str | None, id_hash: str, plan: s
 
 class ChatHandler(SimpleHTTPRequestHandler):
     PUBLIC_FILES = {
-        "/", "/index.html", "/styles.css", "/sw.js", "/app.js", "/manifest.webmanifest",
+        "/", "/index.html", "/styles.css", "/sw.js", "/app.js", "/manifest.webmanifest", "/agency-v2.webmanifest",
         "/icon.svg", "/icon-180.png", "/icon-192.png", "/icon-512.png",
+        "/agency-touch-180-v3.png", "/agency-touch-192-v3.png", "/agency-touch-512-v3.png",
     }
 
     def __init__(self, *args, **kwargs):
@@ -324,8 +383,10 @@ class ChatHandler(SimpleHTTPRequestHandler):
         path = parsed_url.path
         if path == "/api/health":
             return self.send_json(
-                {"status": "ok", "assistant": "configured" if os.environ.get("GROQ_API_KEY") else "missing_key"}
+                {"status": "ok", "assistant": "configured" if os.environ.get("GROQ_API_KEY") else "missing_key", "agents": len(load_agent_library())}
             )
+        if path == "/api/agents":
+            return self.send_json({"items": public_agents(), "count": len(load_agent_library())})
         if path == "/api/chats":
             return self.send_json({"items": fetch_chats()})
         if path == "/api/usage":
@@ -363,13 +424,16 @@ class ChatHandler(SimpleHTTPRequestHandler):
             job_id = data.get("request_id", "")
             chat_id = data.get("chat_id") or None
             id_hash = client_hash(data.get("client_id"))
+            agent_id = clean_input(data.get("agent_id")) or None
+            if agent_id and not get_agent(agent_id):
+                return self.send_json({"error": "Агент не найден"}, 404)
             uuid.UUID(job_id)
             if not message or (chat_id and not isinstance(chat_id, str)):
                 raise ValueError()
         except (ValueError, TypeError, AttributeError):
             return self.send_json({"error": "Нужно сообщение до 8000 символов"}, 400)
 
-        payload = json.dumps([message, chat_id, id_hash], ensure_ascii=False)
+        payload = json.dumps([message, chat_id, id_hash, agent_id], ensure_ascii=False)
         with JOB_LOCK, sqlite3.connect(DB_PATH) as conn:
             previous = conn.execute("SELECT payload FROM jobs WHERE id=?", (job_id,)).fetchone()
             if previous:
@@ -387,7 +451,7 @@ class ChatHandler(SimpleHTTPRequestHandler):
             result = json.dumps({"user_message": message, "plan": plan}, ensure_ascii=False)
             conn.execute("INSERT INTO jobs VALUES (?, ?, 'queued', ?)", (job_id, payload, result))
             conn.commit()
-            threading.Thread(target=worker, args=(job_id, message, chat_id, id_hash, plan), daemon=True).start()
+            threading.Thread(target=worker, args=(job_id, message, chat_id, id_hash, plan, agent_id), daemon=True).start()
         return self.send_json({"job_id": job_id, "state": "queued", "user_message": message, "plan": plan}, 202)
 
     def end_headers(self):
