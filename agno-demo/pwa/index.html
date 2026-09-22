@@ -12,14 +12,23 @@
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="apple-touch-icon" href="./icon-180.png" />
   <script>try{const t=localStorage.getItem("kc-agency-theme");if(t==="dark"||t==="light")document.documentElement.dataset.theme=t;else if(t==="system")document.documentElement.dataset.theme=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}catch(e){}</script>
-  <link rel="stylesheet" href="./styles.css?v=14" />
+  <link rel="stylesheet" href="./styles.css?v=15" />
 </head>
 <body>
-<div class="launch-screen" id="launchScreen" aria-hidden="true"><div class="launch-logo"><span>K&amp;C</span></div></div>
+<div class="launch-screen" id="launchScreen" aria-hidden="true">
+  <div class="launch-logo agency-launch">
+    <div class="agency-orbit" aria-hidden="true"><i></i><i></i></div>
+    <strong>AGENCY</strong>
+    <small>K&amp;C</small>
+  </div>
+</div>
 <div class="app" id="app">
   <header class="topbar">
     <button class="icon3d" id="profileButton" aria-label="Профиль">●</button>
-    <div class="brand"><b>K&C</b><span>AGENCY</span></div>
+    <div class="brand agency-brand">
+  <span class="agency-mini-orbit" aria-hidden="true"><i></i><i></i></span>
+  <div><b>AGENCY</b><span>K&amp;C</span></div>
+</div>
     <div class="top-actions">
       <button class="icon3d" id="themeButton" aria-label="Сменить тему">☼</button>
       <button class="icon3d" id="notifyButton" aria-label="События">♟<i id="notifyBadge">0</i></button>
@@ -115,6 +124,6 @@
   <div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
   <section class="sheet" id="sheet" hidden><div class="sheet-head"><h3 id="sheetTitle"></h3><button id="sheetClose">×</button></div><div id="sheetBody"></div></section>
 </div>
-<script src="/app.js?v=14" defer></script>
+<script src="/app.js?v=15" defer></script>
 </body>
 </html>
