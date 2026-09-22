@@ -275,3 +275,79 @@ body::before{
   html[data-theme="light"] body,
   html[data-theme="light"] body::before{background:#d7d8d8}
 }
+
+
+/* K&C product-family branding: product first, brand second */
+.brand{min-width:132px}
+.brand b{
+  display:block;
+  font-size:1.62rem;
+  line-height:.95;
+  letter-spacing:.14em;
+  padding-left:.14em;
+  font-weight:760;
+}
+.brand span{
+  display:block;
+  margin-top:8px;
+  padding-left:.22em;
+  font-size:.66rem;
+  line-height:1;
+  letter-spacing:.22em;
+  font-weight:600;
+  opacity:.72;
+}
+.launch-logo{
+  min-width:260px;
+  text-align:center;
+  display:grid;
+  justify-items:center;
+  gap:13px;
+}
+.launch-logo .launch-orbit{
+  position:relative;
+  width:104px;
+  height:66px;
+  margin-bottom:7px;
+  filter:drop-shadow(0 8px 18px rgba(0,0,0,.18));
+}
+.launch-orbit i{
+  position:absolute;
+  top:8px;
+  width:58px;
+  height:58px;
+  border:3px solid rgba(240,244,248,.9);
+  border-radius:50%;
+  box-shadow:inset 0 0 10px rgba(255,255,255,.16),0 0 18px rgba(214,228,239,.08);
+}
+.launch-orbit i:first-child{left:12px}
+.launch-orbit i:last-child{right:12px}
+.launch-logo strong{
+  display:block;
+  color:#f4f6f8;
+  font-size:clamp(2.6rem,12vw,4rem);
+  line-height:1;
+  letter-spacing:.18em;
+  padding-left:.18em;
+  font-weight:650;
+  text-shadow:0 10px 28px rgba(0,0,0,.28);
+}
+.launch-logo span{
+  display:block;
+  color:rgba(238,243,247,.7);
+  font-size:.82rem;
+  line-height:1;
+  letter-spacing:.34em;
+  padding-left:.34em;
+  font-weight:600;
+  text-shadow:none;
+}
+.launch-logo span::before,.launch-logo span::after{display:none!important}
+.launch-logo::after{display:none!important}
+html[data-theme="light"] .launch-orbit i{border-color:rgba(35,39,44,.72)}
+html[data-theme="light"] .launch-logo strong{color:#202328;text-shadow:0 10px 26px rgba(70,74,78,.12)}
+html[data-theme="light"] .launch-logo span{color:rgba(35,39,44,.56)}
+@media(max-width:390px){
+  .brand b{font-size:1.42rem}
+  .brand span{font-size:.6rem}
+}
